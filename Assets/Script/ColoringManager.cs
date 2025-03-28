@@ -31,7 +31,7 @@ public class ColoringManager : MonoBehaviour
     private bool needsApply;
     private Color[] currentState;
     private Color[] originalState;
-    private Stack<Color[]> undoStack = new Stack<Color[]>(MAX_UNDO_STEPS);
+    private Stack<Color[]> undoStack = new Stack<Color[]>();    
     
     // Optimization: Pre-compute and cache pixel offsets for brushes
     private List<Vector2Int>[] brushOffsetCache;
@@ -202,7 +202,7 @@ public class ColoringManager : MonoBehaviour
         Debug.Log($"isUndoing: {isUndoing}");
         Debug.Log($"hasChanges: {hasChanges}");
         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        if (targetSprite.bounds.Contains(mousePos) && !isUndoing)
+        if (Input.GetMouseButtonDown(0))
         {
             SaveCurrentState();
         }
@@ -713,13 +713,9 @@ public class ColoringManager : MonoBehaviour
     if (undoStack.Count >= MAX_UNDO_STEPS)
         {
             // Loại bỏ trạng thái cũ nhất
-            undoStack = new Stack<Color[]>(
-                undoStack.Take(MAX_UNDO_STEPS - 1).Reverse()
-            );
+            undoStack = new Stack<Color[]>(undoStack.Take(MAX_UNDO_STEPS - 1));
         }
-        Color[] stateCopy = new Color[currentPixels.Length];
-        Array.Copy(currentPixels, stateCopy, currentPixels.Length);
-        undoStack.Push(stateCopy);
+        undoStack.Push(currentPixels);
 	
     Debug.Log($"Stack size after save: {undoStack.Count}");
 }
@@ -758,17 +754,32 @@ public class ColoringManager : MonoBehaviour
     return true; 
 }
 
- public void Undo()
-{   
+public void Undo() 
+{
     Debug.Log("=== Starting Undo ===");
     Debug.Log($"Initial stack size: {undoStack.Count}");
     Debug.Log($"isUndoing: {isUndoing}");
     Debug.Log($"hasChanges: {hasChanges}");
+
+    // Kiểm tra nếu stack rỗng
     if (undoStack.Count <= 1)
     {
         Debug.Log("Không còn thao tác nào để hoàn tác.");
+        // Khôi phục trạng thái ban đầu
+        coloringTexture.SetPixels(originalPixels);
+        coloringTexture.Apply();
+        
+        // Reset stack về trạng thái ban đầu
+        undoStack.Clear();
+        undoStack.Push(originalPixels);
+        
+        currentState = new Color[originalPixels.Length];
+        Array.Copy(originalPixels, currentState, originalPixels.Length);
+        
+        hasChanges = false;
         return;
     }
+
     isUndoing = true;
 
     // Xoá trạng thái hiện tại
@@ -780,7 +791,7 @@ public class ColoringManager : MonoBehaviour
     // Áp dụng trạng thái trước đó
     coloringTexture.SetPixels(previousState);
     coloringTexture.Apply();
-    
+
     // Cập nhật trạng thái hiện tại
     currentState = new Color[previousState.Length];
     Array.Copy(previousState, currentState, previousState.Length);
