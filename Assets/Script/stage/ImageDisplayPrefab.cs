@@ -11,6 +11,9 @@ public class ImageDisplayPrefab : MonoBehaviour
 
 public void SetupDisplay(string imageId, Texture2D texture, bool isCompleted)
 {
+    Debug.Log($"SetupDisplay called with imageId: {imageId}");
+    Debug.Log($"Texture is null: {texture == null}");
+    Debug.Log($"DisplayImage is null: {displayImage == null}");
     if (texture != null && displayImage != null)
     {
         Debug.Log($"Setting up display for image {imageId}");
@@ -44,7 +47,7 @@ public void SetupDisplay(string imageId, Texture2D texture, bool isCompleted)
 
     if (completionIndicator != null)
     {
-        completionIndicator.SetActive(isCompleted);
+        completionIndicator.SetActive(false);
     }
 }
 }

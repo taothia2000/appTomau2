@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
+
 
 public class SaveManager : MonoBehaviour
 {
@@ -29,49 +31,94 @@ public class SaveManager : MonoBehaviour
     // Event cho UI cập nhật
     public System.Action<List<ColoringProgress>> OnProgressUpdated;
     
-     private void Awake()
+    private void Awake()
     {
-        if (Instance == null)
+    if (Instance == null)
+    {
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+        InitializeManager();
+        
+        // Load existing progress right away
+        if (HasSaveFile())
         {
-            Instance = this;
-            DontDestroyOnLoad(gameObject); // Giữ đối tượng này khi chuyển scene
+            LoadProgress();
         }
-        else
-        {
-            Destroy(gameObject); // Đảm bảo chỉ có một instance duy nhất
-        }
-
-        // Đảm bảo thư mục lưu tồn tại
+    }
+    else
+    {
+        Destroy(gameObject);
+    }
+}
+    
+     private void InitializeManager()
+    {
+        // Initialize with new ProgressData
+        progressData = new ProgressData();
+        
+        // Ensure save directory exists
         if (!Directory.Exists(imageSaveFolder))
         {
             Directory.CreateDirectory(imageSaveFolder);
         }
-
-        LoadProgress();
     }
-    
+
     private Dictionary<string, Texture2D> textureCache = new Dictionary<string, Texture2D>();
+
+    public bool HasSaveFile()
+    {
+        return File.Exists(saveDataPath);
+    }
 
     public void SaveImage(string imageId, Texture2D texture)
     {
-        Debug.Log($"Đang lưu texture ID {imageId} vào cache...");
-        Texture2D textureCopy = new Texture2D(texture.width, texture.height);
-        textureCopy.SetPixels(texture.GetPixels());
-        textureCopy.Apply();
-
-        if (textureCache.ContainsKey(imageId))
+        if (string.IsNullOrEmpty(imageId) || texture == null)
         {
-            textureCache[imageId] = textureCopy;
-        }
-        else
-        {
-            textureCache.Add(imageId, textureCopy);
+            Debug.LogError("Invalid imageId or texture is null");
+            return;
         }
 
-        UpdateProgress(imageId, "");
-
-        Debug.Log($"Đã lưu texture ID {imageId} vào cache");
+        try {
+            // Look for existing progress
+            ColoringProgress existingProgress = progressData.savedImages.Find(p => p.imageId == imageId);
+            
+            // Delete old file if it exists
+            if (existingProgress != null && File.Exists(existingProgress.savedPath))
+            {
+                File.Delete(existingProgress.savedPath);
+            }
+            
+            // Create a copy of the texture
+            Texture2D textureCopy = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false);
+            textureCopy.SetPixels(texture.GetPixels());
+            textureCopy.Apply();
+            
+            // Update texture cache
+            if (textureCache.ContainsKey(imageId))
+            {
+                textureCache[imageId] = textureCopy;
+            }
+            else
+            {
+                textureCache.Add(imageId, textureCopy);
+            }
+            
+            // Create new filename with timestamp
+            string fileName = $"{imageId}_{DateTime.Now:yyyyMMdd_HHmmss}.png";
+            string filePath = Path.Combine(imageSaveFolder, fileName);
+            
+            // Save to file
+            File.WriteAllBytes(filePath, textureCopy.EncodeToPNG());
+            
+            // Update progress record
+            UpdateProgress(imageId, filePath);
+            Debug.Log($"Saved texture ID {imageId} to file: {filePath}");
+        }
+        catch (Exception e) {
+            Debug.LogError($"Error saving texture: {e.Message}");
+        }
     }
+
     private void UpdateProgress(string imageId, string filePath)
     {
         // Tìm tiến độ hiện có
@@ -101,10 +148,7 @@ public class SaveManager : MonoBehaviour
         SaveProgress();
         
         // Kích hoạt event cập nhật UI
-        if (OnProgressUpdated != null)
-        {
-            OnProgressUpdated.Invoke(progressData.savedImages);
-        }
+        OnProgressUpdated?.Invoke(progressData.savedImages);
     }
     
     public void MarkAsCompleted(string imageId)
@@ -116,87 +160,129 @@ public class SaveManager : MonoBehaviour
             SaveProgress();
             
             // Kích hoạt event cập nhật UI
-            if (OnProgressUpdated != null)
-            {
-                OnProgressUpdated.Invoke(progressData.savedImages);
-            }
+            OnProgressUpdated?.Invoke(progressData.savedImages);
         }
     }
     
     public List<ColoringProgress> GetAllProgress()
+{
+    // Nếu chưa load data và có file save, thì load
+    if (progressData.savedImages.Count == 0 && HasSaveFile())
     {
-        return progressData.savedImages;
+        LoadProgress();
     }
     
-   public Texture2D LoadSavedImage(string imageId)
-{
-    Debug.Log($"Đang tải texture ID {imageId} từ cache...");
-    if (textureCache.ContainsKey(imageId))
+    // Log all IDs to check for duplicates
+    Debug.Log("All image IDs:");
+    foreach (var progress in progressData.savedImages)
     {
-        Debug.Log($"Texture ID {imageId} được tìm thấy trong cache.");
+        Debug.Log($"ID: {progress.imageId}, Path: {progress.savedPath}, Completed: {progress.isCompleted}");
+    }
+    
+    return progressData.savedImages;
+}
+    
+    public Texture2D LoadSavedImage(string imageId)
+{
+    if (string.IsNullOrEmpty(imageId))
+    {
+        Debug.LogError("LoadSavedImage: ID trống!");
+        return null;
+    }
+    
+    // Check cache first
+    if (textureCache.ContainsKey(imageId) && textureCache[imageId] != null)
+    {
+        Debug.Log($"Đã lưu texture ID {imageId} vào cache");
         return textureCache[imageId];
     }
-
-    ColoringProgress progress = progressData.savedImages.Find(p => p.imageId == imageId);
-    if (progress != null)
+    
+    string folderPath = imageSaveFolder;
+    
+    // Tìm tất cả file có tên chứa ID này
+    string[] files = Directory.GetFiles(folderPath, $"{imageId}*.png");
+    
+    Debug.Log($"Tìm kiếm hình ảnh với ID {imageId} tại thư mục {folderPath}");
+    Debug.Log($"Tìm thấy {files.Length} file");
+    
+    if (files.Length > 0)
     {
-        Texture2D texture = new Texture2D(2, 2);
-        texture.filterMode = FilterMode.Point;
-        texture.wrapMode = TextureWrapMode.Clamp;
-
-        if (File.Exists(progress.savedPath))
+        // Lấy file gần đây nhất (giả sử đặt tên file có chứa timestamp)
+        string latestFile = files.OrderByDescending(f => f).First();
+        Debug.Log($"Đang tải hình ảnh từ: {latestFile}");
+        
+        try
         {
-            byte[] fileData = File.ReadAllBytes(progress.savedPath);
+            byte[] fileData = File.ReadAllBytes(latestFile);
+            Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            texture.filterMode = FilterMode.Point;
+            texture.wrapMode = TextureWrapMode.Clamp;
+            
             if (texture.LoadImage(fileData))
             {
-                Debug.Log($"Đã tải texture ID {imageId} từ file.");
+                Debug.Log($"Tải thành công texture với kích thước {texture.width}x{texture.height}");
+                // Add to cache
                 textureCache[imageId] = texture;
                 return texture;
             }
         }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Lỗi khi tải hình ảnh: {e.Message}");
+        }
     }
-    Debug.LogError($"Không thể tải texture ID {imageId}.");
+    
+    Debug.Log($"Không tìm thấy hình ảnh nào cho ID: {imageId}");
     return null;
 }
-    
+
+    private string GetSavedImagePath(string imageId)
+{
+    ColoringProgress progress = progressData.savedImages.Find(p => p.imageId == imageId);
+    return progress != null ? progress.savedPath : null;
+}
+
     private void LoadProgress()
     {
-        if (File.Exists(saveDataPath))
+        Debug.Log("=== LOADING PROGRESS ===");
+        Debug.Log($"Looking for save file at: {saveDataPath}");
+        
+        try
         {
-            try
-            {
-                string json = File.ReadAllText(saveDataPath);
-                progressData = JsonUtility.FromJson<ProgressData>(json);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Lỗi khi đọc dữ liệu tiến độ: {e.Message}");
-                progressData = new ProgressData();
-            }
+            string json = File.ReadAllText(saveDataPath);
+            Debug.Log($"Loaded JSON: {json}");
+            progressData = JsonUtility.FromJson<ProgressData>(json);
+            Debug.Log($"Loaded {progressData.savedImages.Count} saved images");
         }
-        else
+        catch (Exception e)
         {
+            Debug.LogError($"Load Progress Error: {e.Message}\n{e.StackTrace}");
             progressData = new ProgressData();
         }
     }
     
     public void SaveProgress()
-{
-    try
     {
-        string json = JsonUtility.ToJson(progressData, true);
-        File.WriteAllText(saveDataPath, json);
-        
-        // Kích hoạt event để cập nhật UI
-        if (OnProgressUpdated != null)
+        try
         {
-            OnProgressUpdated.Invoke(progressData.savedImages);
+            Debug.Log("=== SAVING PROGRESS ===");
+            Debug.Log($"Number of saved images: {progressData.savedImages.Count}");
+            string json = JsonUtility.ToJson(progressData, true);
+            File.WriteAllText(saveDataPath, json);
+            Debug.Log($"Progress saved to: {saveDataPath}");
+            Debug.Log($"JSON Content: {json}");
+            
+            OnProgressUpdated?.Invoke(progressData.savedImages);
+            Debug.Log("Progress update event invoked");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Save Progress Error: {e.Message}\n{e.StackTrace}");
         }
     }
-    catch (Exception e)
+
+    internal void ClearCache()
     {
-        Debug.LogError($"Lỗi khi lưu dữ liệu tiến độ: {e.Message}");
+         textureCache.Clear();
     }
-}
-    
 }

@@ -638,7 +638,6 @@ GameObject:
   - component: {fileID: 461069417}
   - component: {fileID: 461069418}
   - component: {fileID: 461069419}
-  - component: {fileID: 461069420}
   - component: {fileID: 461069421}
   m_Layer: 0
   m_Name: Square
@@ -733,24 +732,8 @@ MonoBehaviour:
   paintBrushSize: 200
   crayonBrushSize: 10
   outlineThreshold: 0.2
-  imageId: image_001
+  imageId: 
   saveManager: {fileID: 461069421}
---- !u!114 &461069420
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 461069416}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 09b4e96581f1b1b4bb49793da80f61f5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  saveManager: {fileID: 461069421}
-  imageItemPrefab: {fileID: 461069416}
-  contentContainer: {fileID: 0}
-  coloringSceneName: Coloring
 --- !u!114 &461069421
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2247,7 +2230,7 @@ Transform:
   m_GameObject: {fileID: 1614200662}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 99.965, y: -8.0899, z: -10}
+  m_LocalPosition: {x: 0, y: 0, z: -10}
   m_LocalScale: {x: 0.83301, y: 0.7339, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2987,7 +2970,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   coloringManager: {fileID: 461069419}
-  stageSceneName: Stage
 --- !u!1 &1805283609
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,37 +1,65 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class StageManager : MonoBehaviour
 {
-    public  GameObject imagePrefab;
-    public Transform imageContainer;
+    public GameObject imageButtonPrefab;
+    public Transform buttonContainer;
     public SaveManager saveManager;
+    
+    // Thêm cấu hình cho grid layout
+    public float buttonSpacing = 10f;
+    public int buttonsPerRow = 3;
+    public Vector2 buttonSize = new Vector2(200, 200);
 
     void Start()
     {
-       saveManager = FindObjectOfType<SaveManager>();
-       if (saveManager == null)
+        // Find or create SaveManager
+        saveManager = SaveManager.Instance;
+        if (saveManager == null)
         {
-            Debug.LogError("Không tìm thấy SaveManager!");
+            Debug.LogError("SaveManager not found!");
             return;
         }
 
+        // Register for updates
         saveManager.OnProgressUpdated += HandleProgressUpdate;
+        
+        // Clear PlayerPrefs on stage screen to avoid stale data
+        PlayerPrefs.DeleteKey("SelectedImageId");
+        
+        // Immediately refresh the list
         RefreshImageList();
-    }
-    void Awake()
-{
-    // Load prefab nếu chưa được gán
-    if (imagePrefab == null)
+        GridLayoutGroup gridLayout = buttonContainer.GetComponent<GridLayoutGroup>();
+    if (gridLayout == null)
     {
-        imagePrefab = Resources.Load<GameObject>("Prefabs/ImageDisplayPrefab");
-        if (imagePrefab == null)
+        gridLayout = buttonContainer.gameObject.AddComponent<GridLayoutGroup>();
+    }
+    
+    // Configure grid layout
+    gridLayout.cellSize = buttonSize;
+    gridLayout.spacing = new Vector2(buttonSpacing, buttonSpacing); 
+    gridLayout.startCorner = GridLayoutGroup.Corner.UpperLeft;
+    gridLayout.startAxis = GridLayoutGroup.Axis.Horizontal;
+    gridLayout.childAlignment = TextAnchor.UpperLeft;
+    gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+    gridLayout.constraintCount = buttonsPerRow;
+    }
+    
+    void Awake()
+    {
+        // Load prefab if not assigned
+        if (imageButtonPrefab == null)
         {
-            Debug.LogError("ImageDisplayPrefab không tìm thấy trong Resources/Prefabs!");
+            imageButtonPrefab = Resources.Load<GameObject>("Prefabs/ImageSelectButton");
+            if (imageButtonPrefab == null)
+            {
+                Debug.LogError("ImageSelectButton prefab not found in Resources/Prefabs!");
+            }
         }
     }
-}
 
     void OnDestroy()
     {
@@ -40,59 +68,102 @@ public class StageManager : MonoBehaviour
             saveManager.OnProgressUpdated -= HandleProgressUpdate;
         }
     }
-private void HandleProgressUpdate(List<SaveManager.ColoringProgress> progress)
+    
+    private void HandleProgressUpdate(List<SaveManager.ColoringProgress> progress)
     {
         RefreshImageList();
     }
 
-   private void RefreshImageList()
+    private void RefreshImageList()
 {
-    if (!imageContainer)
-    {
-        Debug.LogError("Image Container không được gán!");
-        return;
-    }
-
-    // Xóa danh sách cũ
-    foreach (Transform child in imageContainer)
+    // Clear existing buttons
+    foreach (Transform child in buttonContainer)
     {
         Destroy(child.gameObject);
     }
-
+    
+    // Get fresh progress data
     var progressList = saveManager.GetAllProgress();
+    Debug.Log($"Found {progressList.Count} saved images to display");
     
     foreach (var progress in progressList)
     {
         try 
         {
-            GameObject imageObj = Instantiate(imagePrefab, imageContainer);
-            imageObj.transform.localScale = Vector3.one;
+            // Kiểm tra prefab trước khi khởi tạo
+            if (imageButtonPrefab == null)
+            {
+                Debug.LogError("Image button prefab is null!");
+                continue;
+            }
             
-            // Đặt vị trí
-            RectTransform rect = imageObj.GetComponent<RectTransform>();
-            if (rect != null)
-            {
-                rect.anchoredPosition = Vector2.zero;
-            }
+            GameObject buttonObj = Instantiate(imageButtonPrefab, buttonContainer);
 
-            ImageDisplayPrefab display = imageObj.GetComponent<ImageDisplayPrefab>();
-            if (display != null)
+            Image bgImage = buttonObj.AddComponent<Image>();
+            bgImage.color = new Color(
+            Random.value, // Random red
+            Random.value, // Random green
+            Random.value, // Random blue
+            0.5f         // Semi-transparent
+            );
+            buttonObj.name = $"ImageButton_{progress.imageId}";
+            
+            // Kiểm tra component trên button
+            ImageSelectButton buttonScript = buttonObj.GetComponent<ImageSelectButton>();
+            
+            if (buttonScript == null)
             {
-                Texture2D texture = saveManager.LoadSavedImage(progress.imageId);
-                if (texture != null)
-                {
-                    display.SetupDisplay(progress.imageId, texture, progress.isCompleted);
-                }
-                else
-                {
-                    Debug.LogError($"Không thể load texture cho {progress.imageId}");
-                }
+                Debug.LogError($"ImageSelectButton component missing on prefab for {progress.imageId}");
+                
+                // Tạo component mới nếu cần
+                buttonScript = buttonObj.AddComponent<ImageSelectButton>();
             }
+            
+            // Load texture from ID
+Texture2D texture = saveManager.LoadSavedImage(progress.imageId);
+if (texture != null)
+{
+    // Setup the button
+    buttonScript.Setup(
+        progress.imageId, 
+        texture, 
+        progress.isCompleted,
+        progress.lastSaved.ToString("dd/MM/yyyy HH:mm")
+    );
+
+    // Add click handler
+    Button button = buttonObj.GetComponent<Button>();
+    if (button != null)
+    {
+        button.onClick.RemoveAllListeners();
+        button.onClick.AddListener(() => {
+            buttonScript.OnButtonClick();
+        });
+    }
+    
+    Debug.Log($"Successfully created button for image: {progress.imageId}");
+}
+else
+{
+    Debug.LogWarning($"Couldn't load texture for image ID: {progress.imageId}");
+    Destroy(buttonObj);
+}
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"Lỗi khi tạo image display: {e.Message}");
+            Debug.LogError($"Error creating image button: {e.Message}\nStack trace: {e.StackTrace}");
         }
     }
 }
+    
+    // Phương thức load ảnh dựa trên ID
+    public void LoadImageById(string imageId)
+    {
+        // Lưu ID đã chọn
+        PlayerPrefs.SetString("SelectedImageId", imageId);
+        PlayerPrefs.Save();
+        
+        // Load scene màn hình vẽ (tùy theo project của bạn)
+        UnityEngine.SceneManagement.SceneManager.LoadScene("ColoringScene");
+    }
 }

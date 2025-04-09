@@ -5,7 +5,6 @@ using UnityEngine.SceneManagement;
 public class SaveButton : MonoBehaviour
 {
     [SerializeField] private ColoringManager coloringManager;
-    [SerializeField] private string stageSceneName = "Stage";
 
     private void Start()
     {
@@ -24,31 +23,26 @@ public class SaveButton : MonoBehaviour
     public void OnSaveButtonClick()
     {
         Debug.Log("Save button clicked");
-        if (ColoringManager.Instance != null && ColoringManager.Instance.saveManager != null)
+        if (ColoringManager.Instance != null)
         {
-            // Lưu trạng thái hiện tại
+            // Save current state
             bool saveSuccess = ColoringManager.Instance.SaveCurrentImage();
             
             if (saveSuccess)
             {
-                // Đảm bảo SaveManager được giữ lại qua scene
-                var saveManager = ColoringManager.Instance.saveManager;
-                if (saveManager.transform.parent != null)
-            {
-                saveManager.transform.parent = null; // Tách khỏi cha nếu có
-            }
-            DontDestroyOnLoad(saveManager.gameObject);
+                // Make sure progress is saved
+                if (SaveManager.Instance != null)
+                {
+                    SaveManager.Instance.SaveProgress();
+                }
                 
-                // Đảm bảo progress được cập nhật
-                SaveManager.Instance.SaveProgress();
-                
-                // Chuyển scene
-                SceneManager.LoadScene(stageSceneName);
+                // Return to stage selection scene
+                SceneManager.LoadScene("Test");
             }
         }
         else
         {
-            Debug.LogError("ColoringManager hoặc SaveManager không tồn tại!");
+            Debug.LogError("ColoringManager not found!");
         }
     }
 }

@@ -80,12 +80,92 @@ public class ColoringManager : MonoBehaviour
 }
 
     void Start()
+{
+    InitializeTexture();
+    PrecomputeBrushOffsets();
+    InitializeCrayonTexture();
+    
+    // Get the image ID from PlayerPrefs
+    string savedImageId = PlayerPrefs.GetString("SelectedImageId", "");
+    Debug.Log($"ColoringManager.Start: ID from PlayerPrefs is: {savedImageId}");
+    
+    if (!string.IsNullOrEmpty(savedImageId))
     {
-        InitializeTexture();
-        PrecomputeBrushOffsets();
-        InitializeCrayonTexture();
+        // Use the ID from PlayerPrefs
+        imageId = savedImageId;
+        Debug.Log($"Using ID from PlayerPrefs: {imageId}");
+    }
+    else if (string.IsNullOrEmpty(imageId))
+    {
+        Debug.LogError("No image ID from PlayerPrefs or Inspector!");
+        return;
     }
     
+    // Find SaveManager if not assigned
+    if (saveManager == null)
+    {
+        saveManager = FindObjectOfType<SaveManager>();
+        if (saveManager == null)
+        {
+            Debug.LogError("SaveManager not found!");
+        }
+    }
+    
+    // Load the image using the ID
+    LoadSavedImage();
+}
+
+    private void LoadSavedImage()
+{
+    Debug.Log($"LoadSavedImage: Đang tìm hình ảnh với ID: {imageId}");
+    
+    if (string.IsNullOrEmpty(imageId))
+    {
+        Debug.LogError("ImageId trống, không thể tải hình ảnh!");
+        return;
+    }
+    
+    if (saveManager == null)
+    {
+        saveManager = FindObjectOfType<SaveManager>();
+        if (saveManager == null)
+        {
+            Debug.LogError("Không tìm thấy SaveManager!");
+            return;
+        }
+    }
+    
+    // Tải hình ảnh đã lưu nếu có
+    Texture2D savedTexture = saveManager.LoadSavedImage(imageId);
+    
+    if (savedTexture != null)
+    {
+        // Đã tìm thấy hình ảnh đã lưu, sử dụng nó
+        Debug.Log($"Đã tìm thấy và tải hình ảnh đã lưu cho ID: {imageId}");
+        coloringTexture.SetPixels(savedTexture.GetPixels());
+        coloringTexture.Apply();
+        
+        // Lưu bản gốc để reset
+        if (originalPixels == null)
+        {
+            originalPixels = savedTexture.GetPixels();
+            originalState = originalPixels;
+        }
+        
+        hasChanges = true;
+    }
+    else
+    {
+        Debug.Log($"Không tìm thấy texture đã lưu cho id {imageId}, sử dụng texture mặc định");
+    }
+    if (undoStack.Count == 0)
+    {
+        Color[] pixels = coloringTexture.GetPixels();
+        Color[] pixelsCopy = new Color[pixels.Length];
+        System.Array.Copy(pixels, pixelsCopy, pixels.Length);
+        undoStack.Push(pixelsCopy);
+    }
+}
     private void PrecomputeBrushOffsets()
     {
         // Pre-compute pixel offsets for circular brushes of various sizes
@@ -197,10 +277,6 @@ public class ColoringManager : MonoBehaviour
 {
     if (Input.GetMouseButtonDown(0))
     {
-        Debug.Log("--- MouseDown ---");
-        Debug.Log($"Stack Count before: {undoStack.Count}");
-        Debug.Log($"isUndoing: {isUndoing}");
-        Debug.Log($"hasChanges: {hasChanges}");
         Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         if (Input.GetMouseButtonDown(0))
         {
@@ -212,10 +288,6 @@ public class ColoringManager : MonoBehaviour
     }
     else if (Input.GetMouseButtonUp(0))
     {
-        Debug.Log("--- MouseUp ---");
-        Debug.Log($"Stack Count after: {undoStack.Count}");
-        Debug.Log($"isModifying: {isModifying}");
-        Debug.Log($"hasChanges: {hasChanges}");
         isModifying = false;
         lastDrawPosition = null;
         isUndoing = false;
@@ -231,7 +303,6 @@ public class ColoringManager : MonoBehaviour
     if (!isModifying || !Input.GetMouseButton(0))
         return;
         
-    // Using a different variable name here to avoid the conflict
     Vector2 currentMousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
     if (!targetSprite.bounds.Contains(currentMousePos)) 
     {
@@ -256,17 +327,14 @@ public class ColoringManager : MonoBehaviour
 }
     private void DrawCrayonAtPosition(Vector2 pos, Color color, float brushSize)
 {
-    // Chuyển đổi từ world position sang texture coordinates
     Vector2 pixelPos = WorldToTextureCoordinates(pos);
     int x = (int)pixelPos.x;
     int y = (int)pixelPos.y;
 
     int radius = Mathf.RoundToInt(brushSize);
     
-    // Tô màu tại điểm hiện tại
     DrawCrayonSpot(x, y, color, radius);
 
-    // Vẽ đường thẳng từ điểm trước đó đến điểm hiện tại
     if (lastDrawPosition.HasValue)
     {
         Vector2 lastPixelPos = WorldToTextureCoordinates(lastDrawPosition.Value);
@@ -276,7 +344,6 @@ public class ColoringManager : MonoBehaviour
         DrawCrayonLineSegment(lastX, lastY, x, y, color, radius);
     }
 
-    // Cập nhật vị trí cuối cùng
     lastDrawPosition = pos;
     
     needsApply = true;
@@ -290,23 +357,19 @@ public class ColoringManager : MonoBehaviour
     
     if (stepCount <= 0) return;
     
-    // Increase density of points along the line
     int steps = Mathf.Min(Mathf.RoundToInt(stepCount * 1.2f), 20);
     float stepSize = 1f / steps;
     
-    // Randomize points slightly for more natural crayon look
     System.Random rand = new System.Random();
     
     for (float t = 0; t <= 1; t += stepSize)
     {
-        // Add slight jitter to position
         float jitterX = (float)(rand.NextDouble() * 0.6 - 0.3);
         float jitterY = (float)(rand.NextDouble() * 0.6 - 0.3);
         
         int x = Mathf.RoundToInt(Mathf.Lerp(x0, x1, t) + jitterX);
         int y = Mathf.RoundToInt(Mathf.Lerp(y0, y1, t) + jitterY);
         
-        // Vary the radius slightly for each spot
         float radiusVariation = 1.0f + (float)(rand.NextDouble() * 0.3 - 0.15);
         int variableRadius = Mathf.RoundToInt(radius * radiusVariation);
         variableRadius = Mathf.Clamp(variableRadius, 1, maxBrushSize);
@@ -317,7 +380,6 @@ public class ColoringManager : MonoBehaviour
 
     private void DrawCrayonSpot(int x, int y, Color color, int radius)
 {
-    // Base noise for texture consistency
     float baseNoise = Mathf.PerlinNoise(x * 0.08f, y * 0.08f);
     
     foreach (var offset in brushOffsetCache[radius])
@@ -328,32 +390,23 @@ public class ColoringManager : MonoBehaviour
         if (IsInTextureBounds(currentX, currentY))
         {
             Color existingColor = coloringTexture.GetPixel(currentX, currentY);
-            // Thêm kiểm tra đường viền đen
             if (existingColor.a > 0.1f && !IsOutlinePixel(existingColor))
             {
-                // Calculate distance from center for pressure variation
                 float distanceFromCenter = Mathf.Sqrt(offset.x * offset.x + offset.y * offset.y) / radius;
                 
-                // Stronger pressure effect - more opaque in center, more transparent at edges
                 float pressure = Mathf.Pow(1 - distanceFromCenter, 1.5f);
                 
-                // Multiple noise layers for rich texture
                 float noise1 = Mathf.PerlinNoise(currentX * 0.3f, currentY * 0.3f);
                 float noise2 = Mathf.PerlinNoise(currentX * 0.5f + baseNoise, currentY * 0.5f + baseNoise);
                 float noise3 = Mathf.PerlinNoise(currentX * 0.7f + 100, currentY * 0.7f + 100);
                 
-                // Combine noise patterns
-                float combinedNoise = (noise1 * 0.5f + noise2 * 0.3f + noise3 * 0.2f);
+                float combinedNoise = noise1 * 0.5f + noise2 * 0.3f + noise3 * 0.2f;
                 
-                // Create uneven edge effect - stronger near edges
                 float edgeEffect = Mathf.Lerp(0.7f, 1.0f, Mathf.Pow(combinedNoise, 0.5f));
                 pressure *= distanceFromCenter > 0.7f ? edgeEffect * 0.8f : edgeEffect;
                 
-                // Adjust alpha based on pressure and noise
-                // Increasing base alpha to 0.7 for more opaque strokes
                 float alpha = pressure * (0.7f + combinedNoise * 0.3f);
                 
-                // Add color variation
                 Color adjustedColor = new Color(
                     color.r + (combinedNoise * 0.15f - 0.075f),
                     color.g + (combinedNoise * 0.15f - 0.075f),
@@ -361,34 +414,12 @@ public class ColoringManager : MonoBehaviour
                     color.a
                 );
                 
-                // Blend with stronger alpha influence
                 Color newColor = Color.Lerp(existingColor, adjustedColor, alpha);
                 
                 coloringTexture.SetPixel(currentX, currentY, newColor);
                 modifiedPixels.Add(new Vector2Int(currentX, currentY));
             }
         }
-    }
-}
-
-    private void DrawCrayonLine(int x0, int y0, int x1, int y1, Color color, int radius)
-    {
-    int dx = Mathf.Abs(x1 - x0);
-    int dy = Mathf.Abs(y1 - y0);
-    float stepCount = Mathf.Max(dx, dy);
-    
-    if (stepCount <= 0) return;
-    
-    int steps = Mathf.Min(Mathf.RoundToInt(stepCount), 15);
-    float stepSize = 1f / steps;
-    
-    for (float t = 0; t <= 1; t += stepSize)
-    {
-        int x = Mathf.RoundToInt(Mathf.Lerp(x0, x1, t));
-        int y = Mathf.RoundToInt(Mathf.Lerp(y0, y1, t));
-        
-        Vector2 pos = new Vector2(x, y);
-        DrawCrayonAtPosition(pos, color, radius);
     }
 }
 
@@ -426,17 +457,14 @@ public class ColoringManager : MonoBehaviour
 
         if (lastDrawPosition.HasValue)
         {
-            // Convert to pixel coordinates
             Vector2 lastLocal = lastDrawPosition.Value;
             int lastX = Mathf.RoundToInt(lastLocal.x * textureWidth);
             int lastY = Mathf.RoundToInt(lastLocal.y * textureHeight);
             
-            // Draw line from last point to current point
             OptimizedDrawLine(lastX, lastY, x, y, color, Mathf.RoundToInt(brushSize));
         }
         else
         {
-            // First point - just draw a circle
             OptimizedDrawCircle(x, y, Mathf.RoundToInt(brushSize), color);
         }
     
@@ -456,10 +484,8 @@ public class ColoringManager : MonoBehaviour
     int x = (int)pixelPos.x;
     int y = (int)pixelPos.y;
 
-    // Draw brush with gradient from center
     int radius = Mathf.Min(Mathf.RoundToInt(brushSize), maxBrushSize);
     
-    // Use cached offsets instead of nested loops
     foreach (var offset in brushOffsetCache[radius])
     {
         int currentX = x + offset.x;
@@ -468,15 +494,12 @@ public class ColoringManager : MonoBehaviour
         if (IsInTextureBounds(currentX, currentY))
         {
             Color existingColor = coloringTexture.GetPixel(currentX, currentY);
-            // Thêm kiểm tra đường viền đen
             if (existingColor.a > 0.1f && !IsOutlinePixel(existingColor))
             {
-                // Calculate distance for alpha falloff
                 float distSquared = offset.x * offset.x + offset.y * offset.y;
                 float distance = Mathf.Sqrt(distSquared);
-                float alpha = Mathf.Pow(1 - (distance / radius), 2) * 0.2f; // Smoothing with square
+                float alpha = Mathf.Pow(1 - (distance / radius), 2) * 0.2f; 
                 
-                // Blend colors with reduced opacity for brush effect
                 Color blendedColor = Color.Lerp(existingColor, color, alpha);
                 coloringTexture.SetPixel(currentX, currentY, blendedColor);
                 modifiedPixels.Add(new Vector2Int(currentX, currentY));
@@ -511,7 +534,6 @@ public class ColoringManager : MonoBehaviour
     
     if (stepCount <= 0) return;
     
-    // Optimize step count - don't need to do too many steps for short distances
     int actualSteps = Mathf.Min(Mathf.RoundToInt(stepCount), 10);
     float stepSize = 1f / actualSteps;
     
@@ -520,7 +542,6 @@ public class ColoringManager : MonoBehaviour
         int x = Mathf.RoundToInt(Mathf.Lerp(x0, x1, t));
         int y = Mathf.RoundToInt(Mathf.Lerp(y0, y1, t));
         
-        // Use the cached offsets for each point along the line
         foreach (var offset in brushOffsetCache[radius])
         {
             int currentX = x + offset.x;
@@ -529,15 +550,12 @@ public class ColoringManager : MonoBehaviour
             if (IsInTextureBounds(currentX, currentY))
             {
                 Color existingColor = coloringTexture.GetPixel(currentX, currentY);
-                // Thêm kiểm tra đường viền đen
                 if (existingColor.a > 0.1f && !IsOutlinePixel(existingColor))
                 {
-                    // Calculate distance for alpha falloff
                     float distSquared = offset.x * offset.x + offset.y * offset.y;
                     float distance = Mathf.Sqrt(distSquared);
                     float alpha = Mathf.Pow(1 - (distance / radius), 2) * 0.2f;
                     
-                    // Blend colors with reduced opacity
                     Color blendedColor = Color.Lerp(existingColor, color, alpha);
                     coloringTexture.SetPixel(currentX, currentY, blendedColor);
                     modifiedPixels.Add(new Vector2Int(currentX, currentY));
@@ -552,21 +570,18 @@ public class ColoringManager : MonoBehaviour
         int dx = Mathf.Abs(x1 - x0);
         int dy = Mathf.Abs(y1 - y0);
         
-        // Optimize for very short distances
         if (dx <= 1 && dy <= 1)
         {
             OptimizedDrawCircle(x1, y1, radius, color);
             return;
         }
         
-        // Use Bresenham's line algorithm for efficiency
         int sx = x0 < x1 ? 1 : -1;
         int sy = y0 < y1 ? 1 : -1;
         int err = dx - dy;
         
-        // Limit the number of circles drawn based on line length
         int lineLength = Mathf.Max(dx, dy);
-        int skipFactor = Mathf.Max(1, lineLength / 10); // Adjust divisor to change density
+        int skipFactor = Mathf.Max(1, lineLength / 10); 
         int counter = 0;
 
         while (true)
@@ -596,7 +611,6 @@ public class ColoringManager : MonoBehaviour
 
     void OptimizedDrawCircle(int centerX, int centerY, int radius, Color color)
 {
-    // Use cached brush offsets
     radius = Mathf.Min(radius, maxBrushSize);
     
     foreach (var offset in brushOffsetCache[radius])
@@ -607,7 +621,6 @@ public class ColoringManager : MonoBehaviour
         if (IsInTextureBounds(currentX, currentY))
         {
             Color existingColor = coloringTexture.GetPixel(currentX, currentY);
-            // Chỉ vẽ nếu không phải là đường viền đen và có alpha > 0
             if (existingColor.a > 0.1f && !IsOutlinePixel(existingColor))
             {
                 coloringTexture.SetPixel(currentX, currentY, color);
@@ -665,7 +678,7 @@ public class ColoringManager : MonoBehaviour
         {
             Debug.Log("Không có gì để xóa.");
             ConfirmPopup.Instance.popup.SetActive(false);
-            return; // Không làm gì cả
+            return; 
         }
 
         SaveCurrentState();
@@ -684,13 +697,11 @@ public class ColoringManager : MonoBehaviour
 
     private void SaveCurrentState()
 {
-     Debug.Log("=== Attempting to Save State ===");
     if (!isTextureInitialized || coloringTexture == null)
     {Debug.Log("Texture not initialized or null");return;}
         
     Color[] currentPixels = coloringTexture.GetPixels();
 	
-    // Nếu chưa có trạng thái ban đầu
     if (currentState != null)
     {
         bool pixelsMatch = ComparePixels(currentPixels, currentState);
@@ -701,18 +712,15 @@ public class ColoringManager : MonoBehaviour
         Debug.Log("Current state is null");
     }
 	
-    // Kiểm tra xem có thay đổi không
     if (ComparePixels(currentPixels, currentState))
         return;
 		
-    // Tạo bản sao mới của trạng thái
     Color[] newState = new Color[currentPixels.Length];
     Array.Copy(currentPixels, newState, currentPixels.Length);
 	
     // Giới hạn kích thước stack
     if (undoStack.Count >= MAX_UNDO_STEPS)
         {
-            // Loại bỏ trạng thái cũ nhất
             undoStack = new Stack<Color[]>(undoStack.Take(MAX_UNDO_STEPS - 1));
         }
         undoStack.Push(currentPixels);
@@ -756,20 +764,11 @@ public class ColoringManager : MonoBehaviour
 
 public void Undo() 
 {
-    Debug.Log("=== Starting Undo ===");
-    Debug.Log($"Initial stack size: {undoStack.Count}");
-    Debug.Log($"isUndoing: {isUndoing}");
-    Debug.Log($"hasChanges: {hasChanges}");
-
-    // Kiểm tra nếu stack rỗng
     if (undoStack.Count <= 1)
     {
-        Debug.Log("Không còn thao tác nào để hoàn tác.");
-        // Khôi phục trạng thái ban đầu
         coloringTexture.SetPixels(originalPixels);
         coloringTexture.Apply();
         
-        // Reset stack về trạng thái ban đầu
         undoStack.Clear();
         undoStack.Push(originalPixels);
         
@@ -781,28 +780,14 @@ public void Undo()
     }
 
     isUndoing = true;
-
-    // Xoá trạng thái hiện tại
     undoStack.Pop();
-
-    // Lấy trạng thái trước đó
     Color[] previousState = undoStack.Peek();
-
-    // Áp dụng trạng thái trước đó
     coloringTexture.SetPixels(previousState);
     coloringTexture.Apply();
-
-    // Cập nhật trạng thái hiện tại
     currentState = new Color[previousState.Length];
     Array.Copy(previousState, currentState, previousState.Length);
-
-    // Cập nhật trạng thái có thay đổi
     hasChanges = !ComparePixels(currentState, originalPixels);
-
     isUndoing = false;
-
-    Debug.Log($"Final stack size: {undoStack.Count}");
-    Debug.Log($"Undo complete");
 }
 
     public void DebugUndoStack()
@@ -830,61 +815,60 @@ public void Undo()
 
     public static ColoringManager Instance { get; private set; }
 
-    public bool SaveCurrentImage()
-{
-    if (!isTextureInitialized || coloringTexture == null)
+   public bool SaveCurrentImage()
     {
-        Debug.LogError("Không thể lưu: Texture chưa được khởi tạo!");
-        return false;
-    }
-    
-    try
-    {
-        // Tạo bản sao của texture hiện tại với đúng kích thước
-        Texture2D savedTexture = new Texture2D(coloringTexture.width, coloringTexture.height, coloringTexture.format, false);
-        
-        // Copy toàn bộ pixels từ texture gốc
-        Color[] pixels = coloringTexture.GetPixels();
-        savedTexture.SetPixels(pixels);
-        savedTexture.Apply();
-        
-        if (saveManager == null)
+        if (!isTextureInitialized || coloringTexture == null || string.IsNullOrEmpty(imageId))
         {
-            saveManager = FindObjectOfType<SaveManager>();
+            Debug.LogError("Cannot save: Invalid state or missing imageId");
+            return false;
         }
         
-        if (saveManager != null)
+        try
         {
+            // Create texture copy for saving
+            Texture2D savedTexture = new Texture2D(coloringTexture.width, coloringTexture.height, TextureFormat.RGBA32, false);
+            savedTexture.SetPixels(coloringTexture.GetPixels());
+            savedTexture.Apply();
+            
+            // Find SaveManager if not already assigned
+            if (saveManager == null)
+            {
+                saveManager = SaveManager.Instance;
+                if (saveManager == null)
+                {
+                    Debug.LogError("SaveManager not found!");
+                    return false;
+                }
+            }
+            
+            // Save the image with current ID
             saveManager.SaveImage(imageId, savedTexture);
-            // Đánh dấu là đã hoàn thành nếu cần
-            saveManager.MarkAsCompleted(imageId);
+            
+            // Mark as completed if needed
+            // saveManager.MarkAsCompleted(imageId);
+            
+            // Invoke event if needed
+            OnImageSaved?.Invoke(imageId, savedTexture);
+            
+            return true;
         }
-        
-        if (OnImageSaved != null)
+        catch (System.Exception e)
         {
-            OnImageSaved.Invoke(imageId, savedTexture);
+            Debug.LogError($"Save Image Error: {e.Message}");
+            return false;
         }
-        
-        Debug.Log($"Đã lưu bức ảnh ID: {imageId}");
-        return true;
     }
-    catch (System.Exception e)
-    {
-        Debug.LogError($"Lỗi khi lưu hình ảnh: {e.Message}");
-        return false;
-    }
-}
 
     private void InitializeCrayonTexture()
 {
-    crayonTexture = new Texture2D(64, 64); // Tăng độ phân giải texture
+    crayonTexture = new Texture2D(64, 64);
     for (int y = 0; y < crayonTexture.height; y++)
     {
         for (int x = 0; x < crayonTexture.width; x++)
         {
             float noise1 = Mathf.PerlinNoise(x * 0.2f, y * 0.2f);
             float noise2 = Mathf.PerlinNoise(x * 0.4f + 100, y * 0.4f + 100);
-            float finalNoise = (noise1 * 0.6f + noise2 * 0.4f);
+            float finalNoise = noise1 * 0.6f + noise2 * 0.4f;
             crayonTexture.SetPixel(x, y, new Color(1, 1, 1, finalNoise));
         }
     }
@@ -892,8 +876,6 @@ public void Undo()
 }
 private bool IsOutlinePixel(Color color)
 {
-    // Kiểm tra xem pixel có phải là đường viền đen không
-    // Đường viền thường là màu đen hoặc rất tối
     float brightness = color.r * 0.299f + color.g * 0.587f + color.b * 0.114f;
     return brightness <= outlineThreshold && color.a > 0.5f;
 }
