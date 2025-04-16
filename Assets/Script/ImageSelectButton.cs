@@ -2,11 +2,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
+using System;
 
 public class ImageSelectButton : MonoBehaviour
 {
     public Image thumbnailImage;
-    public GameObject completionBadge;
+    // Loại bỏ completionBadge
     public Text lastSavedText;
 
     public string imageId;
@@ -23,120 +24,148 @@ public class ImageSelectButton : MonoBehaviour
         }
     }
     
-    public void Setup(string id, Texture2D texture, bool isCompleted, string lastSavedTime)
+   public void Setup(string id, Texture2D texture, string lastSavedTime)
 {
     imageId = id;
     
-    if (texture != null && thumbnailImage != null)
+    if (thumbnailImage == null)
     {
+        Debug.LogError($"Không tìm thấy thumbnailImage cho button {id}");
+        return;
+    }
+    
+    if (texture != null)
+    {
+        // Xóa sprite cũ nếu có
+        if (thumbnailImage.sprite != null)
+        {
+            Destroy(thumbnailImage.sprite);
+        }
+        
+        // Tạo sprite mới
         Sprite sprite = Sprite.Create(
             texture,
             new Rect(0, 0, texture.width, texture.height),
             new Vector2(0.5f, 0.5f),
-            100f,
-            0,
-            SpriteMeshType.FullRect
+            100f
         );
         
         thumbnailImage.sprite = sprite;
         thumbnailImage.preserveAspect = true;
     }
     
-    if (completionBadge != null)
-    {
-        completionBadge.SetActive(isCompleted);
-    }
-    
     if (lastSavedText != null)
     {
-        lastSavedText.text = "Last saved: " + lastSavedTime;
+        lastSavedText.text = "Lưu lần cuối: " + lastSavedTime;
     }
     
-    // Check if thumbnailImage exists before accessing its RectTransform
-    if (thumbnailImage != null)
-    {
-        RectTransform imageRect = thumbnailImage.GetComponent<RectTransform>();
-        if (imageRect != null && texture != null)
-        {
-            // Ensure image is centered
-            imageRect.anchorMin = new Vector2(0.5f, 0.5f);
-            imageRect.anchorMax = new Vector2(0.5f, 0.5f);
-            imageRect.pivot = new Vector2(0.5f, 0.5f);
-            imageRect.anchoredPosition = Vector2.zero;
-            
-            // This helps different sized images display well
-            imageRect.sizeDelta = new Vector2(
-                texture.width / texture.height > 1 ? imageRect.sizeDelta.x : imageRect.sizeDelta.x * texture.width / texture.height,
-                texture.height / texture.width > 1 ? imageRect.sizeDelta.y : imageRect.sizeDelta.y * texture.height / texture.width
-            );
-        }
-    }
-    
-    // Check for Thumbnail child object
-    Transform thumbnailTransform = transform.Find("Thumbnail");
-    if (thumbnailTransform != null)
-    {
-        Image buttonImage = thumbnailTransform.GetComponent<Image>();
-        if (buttonImage != null)
-        {
-            buttonImage.preserveAspect = true;
-        }
-    }
+    gameObject.name = "ImageButton_" + id;
 }
 
     public void OnButtonClick()
-{
-    Debug.Log($"OnButtonClick: Chọn imageId: {imageId}");
-    
-    // Lưu ID trước
-    PlayerPrefs.SetString("SelectedImageId", imageId);
-    PlayerPrefs.Save();
-    
-    StartCoroutine(SaveImageAndLoadScene());
-}
-
-private IEnumerator SaveImageAndLoadScene()
-{
-    // Đảm bảo SaveManager đã được tìm thấy
-    if (saveManager == null)
     {
-        saveManager = FindObjectOfType<SaveManager>();
+        Debug.Log($"OnButtonClick: Chọn imageId: {imageId}");
+        
+        // Lưu ID trước
+        PlayerPrefs.SetString("SelectedImageId", imageId);
+        PlayerPrefs.Save();
+        
+        // Giải phóng bộ nhớ trước khi chuyển scene
+        Resources.UnloadUnusedAssets();
+        System.GC.Collect();
+        
+        StartCoroutine(SaveImageAndLoadScene());
+    }
+
+    private IEnumerator SaveImageAndLoadScene()
+    {
+        // Ensure SaveManager exists
+        if (saveManager == null)
+        {
+            saveManager = FindObjectOfType<SaveManager>();
+        }
+        
+        if (saveManager != null)
+        {
+            Texture2D existingTexture = saveManager.LoadSavedImage(imageId);
+            
+            if (existingTexture == null && thumbnailImage != null && thumbnailImage.sprite != null)
+            {
+                try {
+                    // Create texture using a different approach to reduce memory usage
+                    Texture2D thumbnailTexture = null;
+                    try {
+                        thumbnailTexture = new Texture2D(
+                            (int)thumbnailImage.sprite.rect.width,
+                            (int)thumbnailImage.sprite.rect.height,
+                            TextureFormat.RGBA32,
+                            false
+                        );
+                        
+                        // Get pixels directly from sprite to avoid creating intermediate textures
+                        Color[] pixels = thumbnailImage.sprite.texture.GetPixels(
+                            (int)thumbnailImage.sprite.textureRect.x,
+                            (int)thumbnailImage.sprite.textureRect.y,
+                            (int)thumbnailImage.sprite.textureRect.width,
+                            (int)thumbnailImage.sprite.textureRect.height
+                        );
+                        
+                        thumbnailTexture.SetPixels(pixels);
+                        thumbnailTexture.Apply();
+                        
+                        // Save image directly through SaveManager
+                        saveManager.SaveImage(imageId, thumbnailTexture);
+                        Debug.Log($"Saved new image with ID: {imageId}");
+                    }
+                    finally {
+                        // Destroy the temporary texture to free memory
+                        if (thumbnailTexture != null) {
+                            Destroy(thumbnailTexture);
+                        }
+                    }
+                }
+                catch (Exception e) {
+                    Debug.LogError($"Error saving thumbnail: {e.Message}");
+                }
+            }
+        }
+        
+        // Make sure to yield return at all code paths
+        yield return null;
+        
+        // Load scene after saving image
+        SceneManager.LoadScene("Main");
     }
     
-    if (saveManager != null)
+    // Loại bỏ thuộc tính IsCompleted
+    
+    public string LastSavedTime
     {
-        Texture2D existingTexture = saveManager.LoadSavedImage(imageId);
-        
-        if (existingTexture == null && thumbnailImage != null && thumbnailImage.sprite != null)
+        get { return lastSavedText != null ? lastSavedText.text.Replace("Last saved: ", "") : ""; }
+    }
+    private void OnEnable()
+{
+    // Kiểm tra xem thumbnailImage có được gán đúng không
+    if (thumbnailImage == null)
+    {
+        Debug.LogError($"thumbnailImage is null in button {gameObject.name}");
+        // Tìm lại trong các thành phần con
+        thumbnailImage = GetComponentInChildren<Image>();
+        if (thumbnailImage != null)
         {
-            // Tạo texture từ thumbnail
-            Texture2D thumbnailTexture = new Texture2D(
-                (int)thumbnailImage.sprite.rect.width,
-                (int)thumbnailImage.sprite.rect.height,
-                TextureFormat.RGBA32,
-                false
-            );
-            
-            thumbnailTexture.SetPixels(
-                thumbnailImage.sprite.texture.GetPixels(
-                    (int)thumbnailImage.sprite.textureRect.x,
-                    (int)thumbnailImage.sprite.textureRect.y,
-                    (int)thumbnailImage.sprite.textureRect.width,
-                    (int)thumbnailImage.sprite.textureRect.height
-                )
-            );
-            thumbnailTexture.Apply();
-            
-            // Lưu texture
-            saveManager.SaveImage(imageId, thumbnailTexture);
-            Debug.Log($"Đã lưu ảnh mới với ID: {imageId}");
-            
-            // Chờ một frame để đảm bảo quá trình lưu hình ảnh hoàn tất
-            yield return null;
+            Debug.Log($"Found thumbnailImage in children for {gameObject.name}");
         }
     }
-    
-    // Chuyển scene sau khi đã lưu hình ảnh
-    SceneManager.LoadScene("Main");
+    else
+    {
+        if (thumbnailImage.sprite == null)
+        {
+            Debug.LogWarning($"thumbnailImage has no sprite in button {gameObject.name}");
+        }
+        else
+        {
+            Debug.Log($"Button {gameObject.name} has thumbnailImage with sprite size: {thumbnailImage.sprite.rect.width}x{thumbnailImage.sprite.rect.height}");
+        }
+    }
 }
 }
