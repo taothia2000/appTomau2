@@ -44,26 +44,26 @@ public class StageManager : MonoBehaviour
     }
 
     private IEnumerator InitializeManager()
-{
-    Debug.Log("InitializeManager started");
-    if (isInitialized) yield break;
-    
-    for (int i = 0; i < containerSettings.Length; i++)
     {
-        if (containerSettings[i].container == null && 
-            i < buttonContainers.Length && 
-            buttonContainers[i] != null)
-        {
-            containerSettings[i].container = buttonContainers[i];
-        }
-    }
-
-    InitializeSaveManager();
-    ConfigureGridLayouts();
-    
-    // Hiển thị tất cả các button, không lọc theo ID
-    yield return StartCoroutine(RefreshImageListCoroutine());
+        Debug.Log("InitializeManager started");
+        if (isInitialized) yield break;
         
+        for (int i = 0; i < containerSettings.Length; i++)
+        {
+            if (containerSettings[i].container == null && 
+                i < buttonContainers.Length && 
+                buttonContainers[i] != null)
+            {
+                containerSettings[i].container = buttonContainers[i];
+            }
+        }
+
+        InitializeSaveManager();
+        ConfigureGridLayouts();
+        
+        // Hiển thị tất cả các button, không lọc theo ID
+        yield return StartCoroutine(RefreshImageListCoroutine());
+            
         isInitialized = true;
         Debug.Log("InitializeManager completed");
     }
@@ -138,16 +138,16 @@ public class StageManager : MonoBehaviour
             gridLayout.constraintCount = settings.buttonsPerRow;
         }
         foreach (var settings in containerSettings)
-    {
-        if (settings.container != null)
         {
-            Debug.Log($"Configured container: {settings.container.name}, buttons per row: {settings.buttonsPerRow}");
+            if (settings.container != null)
+            {
+                Debug.Log($"Configured container: {settings.container.name}, buttons per row: {settings.buttonsPerRow}");
+            }
+            else
+            {
+                Debug.LogWarning("Found null container in settings!");
+            }
         }
-        else
-        {
-            Debug.LogWarning("Found null container in settings!");
-        }
-    }
     }
     
     void Awake()
@@ -205,49 +205,34 @@ public class StageManager : MonoBehaviour
             saveManager.OnProgressUpdated -= HandleProgressUpdate;
         }
         StopAllCoroutines();
-        StartCoroutine(CleanupResources());
+        // Xóa CleanupResources() ở đây không ảnh hưởng đến chạy
     }
     
     private void HandleProgressUpdate(List<SaveManager.ColoringProgress> progress)
-{
-    Debug.Log($"HandleProgressUpdate called with {progress.Count} entries");
-    
-    // Only refresh if we're not already doing so and there are actual changes
-    if (!isRefreshing && progress.Count > 0)
     {
-        // Use a small delay to prevent rapid successive refreshes
-        StartCoroutine(DelayedRefresh(0.5f));
+        Debug.Log($"HandleProgressUpdate called with {progress.Count} entries");
+        
+        // Only refresh if we're not already doing so and there are actual changes
+        if (!isRefreshing && progress.Count > 0)
+        {
+            // Use a small delay to prevent rapid successive refreshes
+            StartCoroutine(DelayedRefresh(0.5f));
+        }
     }
-}
 
     private IEnumerator DelayedRefresh(float delay)
-{
-    yield return new WaitForSeconds(delay);
-    RefreshImageList();
-}
+    {
+        yield return new WaitForSeconds(delay);
+        RefreshImageList();
+    }
+    
     private void OnDisable()
     {
         Debug.Log("StageManager OnDisable() called");
-        StartCoroutine(CleanupResources());
+        // Xóa CleanupResources() ở đây không ảnh hưởng đến chạy
     }
 
-    private IEnumerator CleanupResources()
-    {
-        Debug.Log("Cleaning up resources");
-        foreach (var button in buttonCache.Values)
-        {
-            if (button != null)
-            {
-                Destroy(button.gameObject);
-            }
-        }
-        buttonCache.Clear();
-        
-        Resources.UnloadUnusedAssets();
-        System.GC.Collect();
-        yield return null;
-        Debug.Log("Resources cleanup completed");
-    }
+    // Xóa hàm CleanupResources() không ảnh hưởng đến chạy
 
     private void RefreshImageList()
     {
@@ -257,92 +242,186 @@ public class StageManager : MonoBehaviour
     }
 
     private IEnumerator RefreshImageListCoroutine()
-{
-    if (isRefreshing) yield break;
-    isRefreshing = true;
-
-    // Xóa tất cả button cũ
-    if (containerSettings.Length > 0 && containerSettings[0].container != null)
     {
-        foreach (Transform child in containerSettings[0].container)
+        if (isRefreshing) yield break;
+        isRefreshing = true;
+
+        Debug.Log("Starting to refresh image list");
+
+        // Clear all existing buttons
+        foreach (var settings in containerSettings)
         {
-            Destroy(child.gameObject);
+            if (settings.container != null)
+            {
+                foreach (Transform child in settings.container)
+                {
+                    Destroy(child.gameObject);
+                }
+            }
         }
+
+        // Get all valid progress items
+        var progressList = saveManager.GetAllProgress()
+            .Where(p => !string.IsNullOrEmpty(p.imageId) && 
+                !string.IsNullOrEmpty(p.savedPath) && 
+                File.Exists(p.savedPath))
+            .ToList();
+
+        // Sort by ID to ensure correct ordering
+        progressList.Sort((a, b) => {
+            // Extract numeric part from imageId (e.g., "image_010" becomes 10)
+            int idA = ExtractImageNumber(a.imageId);
+            int idB = ExtractImageNumber(b.imageId);
+            return idA.CompareTo(idB);
+        });
+
+        Debug.Log($"Found {progressList.Count} valid progress items");
+
+        // Process each image
+        foreach (var progress in progressList)
+        {
+            // Extract the image number
+            int imageNumber = ExtractImageNumber(progress.imageId);
+            Debug.Log($"Processing image ID: {progress.imageId}, Number: {imageNumber}");
+            
+            // Find appropriate container
+            Transform targetContainer = FindContainerForImage(imageNumber);
+            
+            if (targetContainer != null)
+            {
+                Debug.Log($"Creating button for {progress.imageId} in container {targetContainer.name}");
+                yield return StartCoroutine(CreateButtonForProgress(targetContainer, progress));
+            }
+            else
+            {
+                Debug.LogWarning($"No container found for image {progress.imageId} (number {imageNumber})");
+            }
+        }
+
+        isRefreshing = false;
+        Debug.Log($"Grid populated with {progressList.Count} buttons");
     }
 
-    // Lấy danh sách progress
-    var progressList = saveManager.GetAllProgress()
-        .Where(p => !string.IsNullOrEmpty(p.imageId) && 
-               !string.IsNullOrEmpty(p.savedPath) && 
-               File.Exists(p.savedPath))
-        .ToList();
-
-    for (int i = 0; i < containerSettings.Length; i++) 
-{
-    if (i < progressList.Count) // Chỉ tạo nếu có đủ progress items
+    private Transform FindContainerForImage(int imageNumber)
     {
-        yield return StartCoroutine(
-            CreateButtonForProgress(
-                containerSettings[i].container, 
-                progressList[i] // Lấy progress tương ứng với container index
-            )
-        );
+        // First try to find an exact match by container name
+        foreach (var settings in containerSettings)
+        {
+            if (settings.container == null) continue;
+            
+            string containerName = settings.container.name.ToLower();
+            
+            // Check for exact match (e.g., "Image10" for image 10)
+            if (containerName == $"image{imageNumber}" || 
+                containerName == $"image{imageNumber}".ToLower() || 
+                containerName == $"image_{imageNumber}".ToLower())
+            {
+                Debug.Log($"Found exact container match: {settings.container.name} for image {imageNumber}");
+                return settings.container;
+            }
+        }
+        
+        // If no exact match, try to find by range
+        // Example: Images 1-5 go to the first container, etc.
+        if (imageNumber >= 1 && imageNumber <= 5 && containerSettings.Length > 0)
+        {
+            Debug.Log($"Using first container for image {imageNumber}");
+            return containerSettings[0].container;
+        }
+        else if (imageNumber >= 6 && imageNumber <= 10 && containerSettings.Length > 1)
+        {
+            Debug.Log($"Using second container for image {imageNumber}");
+            return containerSettings[1].container;
+        }
+        else if (imageNumber >= 11 && containerSettings.Length > 2)
+        {
+            Debug.Log($"Using third container for image {imageNumber}");
+            return containerSettings[2].container;
+        }
+        
+        // Default to first container if available
+        if (containerSettings.Length > 0 && containerSettings[0].container != null)
+        {
+            Debug.Log($"Using default (first) container for image {imageNumber}");
+            return containerSettings[0].container;
+        }
+        
+        Debug.LogError($"No suitable container found for image {imageNumber}");
+        return null;
     }
-}
 
-    isRefreshing = false;
-    Debug.Log("Đã tạo 1 button duy nhất");
-}
-    
+    private int ExtractImageNumber(string imageId)
+    {
+        // Handle both formats: "imageX" and "image_X"
+        string pattern = @"(\d+)";
+        var match = System.Text.RegularExpressions.Regex.Match(imageId, pattern);
+        
+        if (match.Success && int.TryParse(match.Value, out int number))
+        {
+            return number;
+        }
+        return 0;
+    }
+
+
     private IEnumerator CreateButtonForProgress(Transform container, SaveManager.ColoringProgress progress)
     {
         try {
-            // Tạo button cho hình đã lưu
-            GameObject buttonObj = Instantiate(imageButtonPrefab, container);
-            if (buttonObj == null) {
-                Debug.LogError($"Không thể tạo button cho {progress.imageId}. Prefab là null.");
-                yield break;
+            // Create button and parent it immediately
+            GameObject buttonObj = Instantiate(imageButtonPrefab, container, false);
+            buttonObj.name = $"Button_{progress.imageId}";
+            
+            // Ensure button has correct size to fit in grid cell
+            RectTransform rt = buttonObj.GetComponent<RectTransform>();
+            if (rt != null)
+            {
+                // Find container settings
+                var settings = containerSettings.FirstOrDefault(s => s.container == container);
+                if (settings != null)
+                {
+                    // Ensure button fits grid cell exactly
+                    rt.sizeDelta = settings.buttonSize;
+                }
             }
             
-            buttonObj.name = $"Button_{progress.imageId}";
             buttonObj.SetActive(true);
             
-            // Lấy ImageSelectButton component
+            // Rest of the method unchanged...
             ImageSelectButton buttonScript = buttonObj.GetComponent<ImageSelectButton>();
             if (buttonScript == null) {
-                Debug.LogError($"Không tìm thấy ImageSelectButton component trên prefab");
+                Debug.LogError($"ImageSelectButton component not found on prefab");
                 Destroy(buttonObj);
                 yield break;
             }
             
-            // Đảm bảo có thumbnailImage component
+            // Ensure thumbnailImage component exists
             if (buttonScript.thumbnailImage == null) {
                 buttonScript.thumbnailImage = buttonObj.GetComponentInChildren<Image>();
                 if (buttonScript.thumbnailImage == null) {
-                    Debug.LogError($"Không tìm thấy Image component trên prefab");
+                    Debug.LogError($"Image component not found on prefab");
                     Destroy(buttonObj);
                     yield break;
                 }
             }
             
-            // Load texture từ file đã lưu
+            // Load texture from saved file
             try {
                 byte[] fileData = File.ReadAllBytes(progress.savedPath);
                 Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                 
                 if (texture.LoadImage(fileData))
                 {
-                    Debug.Log($"Đã load thành công texture cho {progress.imageId}");
+                    Debug.Log($"Successfully loaded texture for {progress.imageId}");
                     buttonScript.Setup(
                         progress.imageId,
                         texture,
                         progress.lastSaved.ToString("dd/MM/yyyy HH:mm")
                     );
                     
-                    // Thêm click handler
+                    // Add click handler
                     Button button = buttonObj.GetComponent<Button>();
                     if (button != null) {
-                        string imageId = progress.imageId; // Tạo biến local để tránh closure
+                        string imageId = progress.imageId;
                         button.onClick.RemoveAllListeners();
                         button.onClick.AddListener(() => LoadImageById(imageId));
                     }
@@ -352,97 +431,22 @@ public class StageManager : MonoBehaviour
                 }
                 else
                 {
-                    Debug.LogError($"Không thể load texture cho {progress.imageId}");
+                    Debug.LogError($"Could not load texture for {progress.imageId}");
                     Destroy(buttonObj);
                 }
             }
             catch (Exception ex) {
-                Debug.LogError($"Lỗi khi xử lý texture cho {progress.imageId}: {ex.Message}");
+                Debug.LogError($"Error processing texture for {progress.imageId}: {ex.Message}");
                 Destroy(buttonObj);
             }
         }
         catch (Exception ex) {
-            Debug.LogError($"Lỗi khi xử lý {progress.imageId}: {ex.Message}");
-        }
-        
-        yield return null;
-    }
-    
-    private IEnumerator CreateButtonForTemplate(Transform container, string templateId)
-    {
-        if (buttonCache.ContainsKey(templateId))
-    {
-        Debug.Log($"Button for {templateId} already exists, skipping creation");
-        yield break;
-    }
-        try {
-            // Tạo button cho template
-            GameObject buttonObj = Instantiate(imageButtonPrefab, container);
-            buttonObj.name = $"Button_{templateId}";
-            buttonObj.SetActive(true);
-            
-            ImageSelectButton buttonScript = buttonObj.GetComponent<ImageSelectButton>();
-            if (buttonScript == null) {
-                Debug.LogError($"Không tìm thấy ImageSelectButton component trên prefab");
-                Destroy(buttonObj);
-                yield break;
-            }
-            
-            // Đảm bảo có thumbnailImage component
-            if (buttonScript.thumbnailImage == null) {
-                buttonScript.thumbnailImage = buttonObj.GetComponentInChildren<Image>();
-                if (buttonScript.thumbnailImage == null) {
-                    Debug.LogError($"Không tìm thấy Image component trên prefab");
-                    Destroy(buttonObj);
-                    yield break;
-                }
-            }
-            
-            // Load template texture từ Resources hoặc nơi lưu trữ template
-            Texture2D texture = LoadTemplateTexture(templateId);
-            if (texture != null)
-            {
-                Debug.Log($"Đã load thành công template texture cho {templateId}");
-                buttonScript.Setup(
-                    templateId,
-                    texture,
-                    "Chưa tô màu" // Hiển thị nhãn "Chưa tô màu" thay vì ngày giờ
-                );
-                
-                // Thêm click handler
-                Button button = buttonObj.GetComponent<Button>();
-                if (button != null) {
-                    string imageId = templateId; // Tạo biến local để tránh closure
-                    button.onClick.RemoveAllListeners();
-                    button.onClick.AddListener(() => LoadImageById(imageId));
-                }
-                
-                buttonCache[templateId] = buttonScript;
-                activeButtons.Add(buttonScript);
-            }
-            else
-            {
-                Debug.LogError($"Không thể load template texture cho {templateId}");
-                Destroy(buttonObj);
-            }
-        }
-        catch (Exception ex) {
-            Debug.LogError($"Lỗi khi xử lý template {templateId}: {ex.Message}");
+            Debug.LogError($"Error processing {progress.imageId}: {ex.Message}");
         }
         
         yield return null;
     }
 
-    private Texture2D LoadTemplateTexture(string templateId)
-    {
-        // Implement theo cách bạn lưu trữ template images
-        // Ví dụ:
-        return Resources.Load<Texture2D>($"ColoringTemplates/{templateId}");
-        
-        // Hoặc nếu bạn có cách khác để load:
-        // return YourCustomLoadMethod(templateId);
-    }
-    
     public void RefreshAfterSave()
     {
         // Call this after a new save is created
@@ -452,25 +456,6 @@ public class StageManager : MonoBehaviour
         }
     }
 
-    private List<string> GetTemplateImageIds()
-    {
-        // Implement theo cách bạn lưu trữ template images
-        // Ví dụ:
-        List<string> templateIds = new List<string>();
-        
-        // Nếu template nằm trong Resources folder
-        Texture2D[] templates = Resources.LoadAll<Texture2D>("ColoringTemplates");
-        foreach (var template in templates)
-        {
-            templateIds.Add(template.name);
-        }
-        
-        // Hoặc nếu bạn có danh sách cố định
-        // templateIds.AddRange(new[] { "image_1", "image_2", "image_3" });
-        
-        return templateIds;
-    }
-    
     public void LoadImageById(string imageId)
     {
         Debug.Log($"LoadImageById called for image ID: {imageId}");
@@ -483,11 +468,11 @@ public class StageManager : MonoBehaviour
         PlayerPrefs.SetString("SelectedImageId", imageId);
         PlayerPrefs.Save();
         
-        // Ensure cleanup before scene change
+        // Ensure cleanup before scene change - không cần thiết nhưng vẫn có thể thực hiện giải phóng cơ bản
         StopAllCoroutines();
-        yield return StartCoroutine(CleanupResources());
         
         Debug.Log($"Loading ColoringScene with image ID: {imageId}");
-        UnityEngine.SceneManagement.SceneManager.LoadScene("ColoringScene");
+        UnityEngine.SceneManagement.SceneManager.LoadScene("Main");
+        yield return null;
     }
 }
