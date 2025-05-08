@@ -5,29 +5,25 @@ public class ScreenPositioner : MonoBehaviour
     public enum ScreenAnchor { TopLeft, Top, TopRight, Left, Center, Right, BottomLeft, Bottom, BottomRight }
     public ScreenAnchor anchorPosition;
     public Vector2 offset;
-    public bool adjustScale = false;
-    public float scaleMultiplier = 0.5f;
+    public bool adjustScale = true; // Đảm bảo luôn bật
+    public float scaleMultiplier = 0.5f; // Tăng lên để hiệu ứng rõ ràng hơn
     
     private Vector2 lastScreenSize;
     private Vector3 originalScale;
-    private Vector2 referenceResolution = new Vector2(1920, 1080); // Độ phân giải tham chiếu
+    private float baseScreenHeight = 1080f; // Màn hình tham chiếu
 
     void Start()
     {
-        // Lưu lại scale gốc của object
         originalScale = transform.localScale;
-        
-        // Lưu kích thước màn hình ban đầu
         lastScreenSize = new Vector2(Screen.width, Screen.height);
-        
-        // Áp dụng vị trí và scale ngay khi bắt đầu
         PositionObject();
     }
 
     void Update()
     {
-        // Kiểm tra nếu kích thước màn hình thay đổi
-        if (Screen.width != lastScreenSize.x || Screen.height != lastScreenSize.y)
+        // Cải thiện kiểm tra thay đổi kích thước màn hình
+        if (Mathf.Abs(Screen.width - lastScreenSize.x) > 0.1f || 
+            Mathf.Abs(Screen.height - lastScreenSize.y) > 0.1f)
         {
             lastScreenSize = new Vector2(Screen.width, Screen.height);
             PositionObject();
@@ -39,7 +35,7 @@ public class ScreenPositioner : MonoBehaviour
         Camera cam = Camera.main;
         Vector3 viewportPosition = Vector3.zero;
         
-        // Xác định vị trí theo viewport (0-1)
+        // Xác định vị trí viewport như cũ
         switch (anchorPosition)
         {
             case ScreenAnchor.TopLeft:      viewportPosition = new Vector3(0, 1, 0); break;
@@ -55,67 +51,45 @@ public class ScreenPositioner : MonoBehaviour
         
         // Chuyển đổi từ viewport sang world position
         Vector3 worldPos = cam.ViewportToWorldPoint(viewportPosition);
-        worldPos.z = 0; // Đảm bảo object nằm trên mặt phẳng z=0
-        
-        // Áp dụng offset
+        worldPos.z = 0;
         worldPos += new Vector3(offset.x, offset.y, 0);
-        
-        // Đặt vị trí object
         transform.position = worldPos;
         
-        // Áp dụng scale tự động khi thay đổi khung hình
-        if (adjustScale)
+          if (adjustScale)
+    {
+        // Tính tỷ lệ màn hình dựa trên chiều rộng thay vì chiều cao
+        float widthRatio = (float)Screen.width / 1080f; // 1080 là chiều rộng tham chiếu
+        float heightRatio = (float)Screen.height / 1920f; // 1920 là chiều cao tham chiếu
+        
+        // Sử dụng tỷ lệ nhỏ hơn để đảm bảo đối tượng hiển thị đầy đủ
+        float screenRatio = Mathf.Min(widthRatio, heightRatio);
+        
+        // Áp dụng tỷ lệ thay đổi rõ rệt hơn
+        Vector3 newScale;
+        if (Screen.width >= 1500) // Màn hình rộng
         {
-            // Tính toán tỉ lệ phóng to dựa trên kích thước màn hình
-            float screenRatio;
-            Vector3 newScale = originalScale;
-            
-            if (cam.orthographic)
-            {
-                // Với ứng dụng portrait, lấy tỉ lệ phóng to để lấp đầy chiều rộng
-                float screenWidth = cam.orthographicSize * 2.0f * ((float)Screen.width / Screen.height);
-                float screenHeight = cam.orthographicSize * 2.0f;
-                
-                // Tính tỉ lệ phóng to để lấp đầy hầu hết màn hình
-                float widthRatio = screenWidth / 5.0f; // Điều chỉnh số này để phù hợp với kích thước đối tượng gốc
-                float heightRatio = screenHeight / 5.0f;
-                
-                // Lấy giá trị lớn hơn để đảm bảo đối tượng lấp đầy phần lớn màn hình
-                screenRatio = Mathf.Max(widthRatio, heightRatio);
-                
-                // Tính scale mới, đảm bảo lớn hơn scale gốc
-                newScale *= screenRatio * scaleMultiplier;
-            }
-            else
-            {
-                // Với perspective camera
-                float distance = Mathf.Abs(transform.position.z - cam.transform.position.z);
-                float viewportHeight = 2.0f * distance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
-                float viewportWidth = viewportHeight * cam.aspect;
-                
-                // Tính tỉ lệ phóng to
-                float widthRatio = viewportWidth / 5.0f;
-                float heightRatio = viewportHeight / 5.0f;
-                
-                // Lấy giá trị lớn hơn
-                screenRatio = Mathf.Max(widthRatio, heightRatio);
-                
-                // Tính scale mới
-                newScale *= screenRatio * scaleMultiplier;
-            }
-            
-            // Đảm bảo scale không bao giờ nhỏ hơn scale gốc
-            newScale.x = Mathf.Max(newScale.x, originalScale.x);
-            newScale.y = Mathf.Max(newScale.y, originalScale.y);
-            newScale.z = originalScale.z;
-            
-            // Áp dụng scale mới
-            transform.localScale = newScale;
+            newScale = originalScale * 1.5f; // Tăng 50% cho màn hình lớn
         }
-        else
+        else if (Screen.width <= 1000) // Màn hình nhỏ 
         {
-            // Nếu không điều chỉnh scale, sử dụng scale gốc
-            transform.localScale = originalScale;
+            newScale = originalScale * 0.8f; // Giảm 20% cho màn hình nhỏ
         }
+        else // Màn hình trung bình
+        {
+            newScale = originalScale * 1.0f; // Giữ nguyên scale cho màn hình chuẩn
+        }
+        
+        // Áp dụng scaleMultiplier từ Inspector
+        newScale *= scaleMultiplier;
+        
+        transform.localScale = newScale;
+        
+        Debug.Log($"Screen size: {Screen.width}x{Screen.height}, Width Ratio: {widthRatio}, " +
+                 $"Height Ratio: {heightRatio}, Final Scale: {newScale}");
+    }
+    else
+    {
+        transform.localScale = originalScale;
+    }
     }
 }
