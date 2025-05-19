@@ -9,31 +9,37 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public ColoringManager coloringManager;
     public Color buttonColor;
     public Color originalColor { get; private set; }
-    private Button button;
+    public Button button;
     public ColorButtonCustomizer colorCustomizer;
 
     private bool isLongPressing = false;
     private float longPressThreshold = 0.5f;
     private Coroutine longPressCoroutine;
 
+    // Thêm Outline component để tạo viền sáng
+    private Outline outline;
+
     void Start()
     {
         button = GetComponent<Button>();
+        outline = gameObject.AddComponent<Outline>(); // Thêm Outline nếu chưa có
+        outline.effectColor = Color.white; // Màu viền sáng
+        outline.effectDistance = new Vector2(4f, -4f); // Độ dày viền
+        outline.enabled = false; // Ban đầu tắt viền
+
         if (button != null)
         {
             if (buttonColor.a == 0f)
             {
                 buttonColor.a = 1f;
-                Debug.LogWarning($"Fixed buttonColor alpha = 0f for button {gameObject.name} in Start");
             }
 
             originalColor = buttonColor;
-            Debug.Log($"Button {gameObject.name} initialized with original color: {ColorUtility.ToHtmlStringRGB(originalColor)}");
 
+            // Sử dụng màu gốc đầy đủ, không làm mờ
             ColorBlock colors = button.colors;
-            colors.normalColor = new Color(buttonColor.r, buttonColor.g, buttonColor.b, 0.5f);
+            colors.normalColor = buttonColor; // Màu gốc với alpha = 1
             button.colors = colors;
-            Debug.Log($"Start: normalColor alpha = {colors.normalColor.a}, Image alpha = {GetComponent<Image>().color.a}");
 
             button.onClick.AddListener(OnColorButtonClick);
         }
@@ -41,7 +47,6 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
     public void OnPointerDown(PointerEventData eventData)
     {
-        Debug.Log("Pointer down on " + gameObject.name);
         isLongPressing = true;
 
         if (longPressCoroutine != null)
@@ -53,7 +58,6 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
     public void OnPointerUp(PointerEventData eventData)
     {
-        Debug.Log("Pointer up on " + gameObject.name);
         isLongPressing = false;
 
         if (longPressCoroutine != null)
@@ -75,33 +79,15 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
         if (isLongPressing)
         {
-            Debug.Log("Long press detected on " + gameObject.name);
             OnLongPress();
         }
     }
 
     private void OnLongPress()
     {
-        Debug.Log("Processing long press on " + gameObject.name);
-
         if (colorCustomizer != null)
         {
-            Debug.Log("Showing color palette through customizer");
             colorCustomizer.ShowColorPalette(this);
-
-            if (colorCustomizer.colorPalettePanel != null)
-            {
-                Debug.Log("Color palette panel active state after showing: " + 
-                          colorCustomizer.colorPalettePanel.activeSelf);
-            }
-            else
-            {
-                Debug.LogError("Color palette panel is null after showing!");
-            }
-        }
-        else
-        {
-            Debug.LogError("Cannot show color palette: ColorButtonCustomizer is null!");
         }
     }
 
@@ -114,90 +100,66 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
             coloringManager.SetColor(newColor);
 
             HighlightSelectedButton();
-            DebugUIState("After clicking color button");
             
             gameObject.SetActive(true);
         }
     }
 
-    private void DebugUIState(string context)
-    {
-        Image buttonImage = GetComponent<Image>();
-        Button btn = GetComponent<Button>();
-        CanvasGroup canvasGroup = GetComponent<CanvasGroup>();
-        Transform parent = transform.parent;
-        Image parentImage = parent != null ? parent.GetComponent<Image>() : null;
-
-        Debug.Log($"[{context}] Button: {gameObject.name}");
-        Debug.Log($"Image - Color: {buttonImage.color}, Enabled: {buttonImage.enabled}, Active: {buttonImage.gameObject.activeSelf}");
-        Debug.Log($"Button - Enabled: {btn.enabled}, Active: {btn.gameObject.activeSelf}");
-        if (canvasGroup != null)
-        {
-            Debug.Log($"CanvasGroup - Alpha: {canvasGroup.alpha}, Interactable: {canvasGroup.interactable}, BlocksRaycasts: {canvasGroup.blocksRaycasts}");
-        }
-        else
-        {
-            Debug.Log("CanvasGroup: Not present");
-        }
-        if (parentImage != null)
-        {
-            Debug.Log($"Parent Image - Color: {parentImage.color}, Enabled: {parentImage.enabled}, Active: {parentImage.gameObject.activeSelf}");
-        }
-        else
-        {
-            Debug.Log("Parent Image: Not present");
-        }
-    }
-
     private void HighlightSelectedButton()
+{
+    ColorButton[] allButtons = FindObjectsOfType<ColorButton>();
+    
+    foreach (var btn in allButtons)
     {
-        ColorButton[] allButtons = FindObjectsOfType<ColorButton>();
+        if (btn == null || btn.button == null)
+            continue;
+            
+        ColorBlock colors = btn.button.colors;
+        colors.normalColor = btn.buttonColor; // Giữ màu gốc, không làm mờ
+        btn.button.colors = colors;
         
-        foreach (var btn in allButtons)
+        btn.gameObject.SetActive(true);
+        
+        Image btnImage = btn.GetComponent<Image>();
+        if (btnImage != null && btnImage.color.a != 1f)
         {
-            if (btn == null || btn.button == null)
-                continue;
-                
-            ColorBlock colors = btn.button.colors;
-            colors.normalColor = new Color(btn.buttonColor.r, btn.buttonColor.g, btn.buttonColor.b, 0.5f);
-            btn.button.colors = colors;
-            
-            btn.gameObject.SetActive(true);
-            
-            Image btnImage = btn.GetComponent<Image>();
-            if (btnImage != null && btnImage.color.a == 0f)
-            {
-                btnImage.color = new Color(btnImage.color.r, btnImage.color.g, btnImage.color.b, 1f);
-                Debug.LogWarning($"Fixed Image alpha = 0f for button {btn.gameObject.name}");
-            }
+            btnImage.color = new Color(btnImage.color.r, btnImage.color.g, btnImage.color.b, 1f);
         }
 
-        if (button != null)
+        if (btn.outline != null && btn != this) // Tắt viền cho các button khác
         {
-            ColorBlock colors = button.colors;
-            colors.normalColor = buttonColor;
-            button.colors = colors;
+            btn.outline.enabled = false;
         }
     }
+
+    if (button != null)
+    {
+        ColorBlock colors = button.colors;
+        colors.normalColor = buttonColor; // Giữ màu gốc
+        button.colors = colors;
+
+        if (outline != null)
+        {
+            outline.enabled = true; // Bật viền cho button được chọn
+        }
+    }
+}
 
     public void ResetToOriginalColor()
     {
         if (buttonColor.a == 0f)
         {
             buttonColor.a = 1f;
-            Debug.LogWarning($"Fixed buttonColor alpha = 0f for button {gameObject.name} in ResetToOriginalColor");
         }
 
         buttonColor = originalColor;
-        Debug.Log($"Button {gameObject.name} reset to original color: {ColorUtility.ToHtmlStringRGB(originalColor)}");
 
         if (button != null)
         {
             ColorBlock colors = button.colors;
-            colors.normalColor = new Color(buttonColor.r, buttonColor.g, buttonColor.b, 0.5f);
+            colors.normalColor = buttonColor; // Sử dụng màu gốc
             button.colors = colors;
             button.enabled = true;
-            Debug.Log($"ResetToOriginalColor: normalColor alpha = {colors.normalColor.a}");
         }
         
         gameObject.SetActive(true);
@@ -214,7 +176,6 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         {
             buttonImage.color = new Color(buttonColor.r, buttonColor.g, buttonColor.b, 1f);
             buttonImage.enabled = true;
-            Debug.Log($"ResetToOriginalColor: Image alpha = {buttonImage.color.a}");
         }
 
         Transform parent = transform.parent;
@@ -225,8 +186,13 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
             {
                 parentImage.color = new Color(buttonColor.r, buttonColor.g, buttonColor.b, 1f);
                 parentImage.enabled = true;
-                Debug.Log($"ResetToOriginalColor: Parent Image alpha = {parentImage.color.a}");
             }
+        }
+
+        // Tắt viền khi reset
+        if (outline != null)
+        {
+            outline.enabled = false;
         }
     }
     
@@ -246,7 +212,6 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
             if (img.color.a == 0f)
             {
                 img.color = new Color(img.color.r, img.color.g, img.color.b, 1f);
-                Debug.LogWarning($"Fixed Image alpha = 0f in ForceShow for button {gameObject.name}");
             }
         }
         
@@ -259,6 +224,12 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
             canvasGroup.interactable = true;
             canvasGroup.blocksRaycasts = true;
         }
+
+        // Đảm bảo viền tắt khi ForceShow
+        if (outline != null)
+        {
+            outline.enabled = false;
+        }
     }
 
     void LateUpdate()
@@ -269,7 +240,6 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
             canvasGroup.alpha = 1f;
             canvasGroup.interactable = true;
             canvasGroup.blocksRaycasts = true;
-            Debug.LogWarning($"Fixed CanvasGroup alpha = 0f for button {gameObject.name}");
         }
 
         CanvasGroup parentCanvasGroup = transform.parent != null ? transform.parent.GetComponent<CanvasGroup>() : null;
@@ -278,14 +248,12 @@ public class ColorButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
             parentCanvasGroup.alpha = 1f;
             parentCanvasGroup.interactable = true;
             parentCanvasGroup.blocksRaycasts = true;
-            Debug.LogWarning($"Fixed Parent CanvasGroup alpha = 0f for button {gameObject.name}");
         }
 
         Image buttonImage = GetComponent<Image>();
         if (buttonImage != null && buttonImage.color.a == 0f)
         {
             buttonImage.color = new Color(buttonImage.color.r, buttonImage.color.g, buttonImage.color.b, 1f);
-            Debug.LogWarning($"Fixed Image alpha = 0f for button {gameObject.name}");
         }
     }
 }

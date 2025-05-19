@@ -47,7 +47,7 @@ public class ColorButtonCustomizer : MonoBehaviour
         allColors = new List<Color>(); // Khởi tạo danh sách màu
     }
 
-   public void ShowColorPalette(ColorButton button)
+public void ShowColorPalette(ColorButton button)
 {
     if (button == null || colorPalettePanel == null)
     {
@@ -60,8 +60,8 @@ public class ColorButtonCustomizer : MonoBehaviour
     if (currentEditingButton.buttonColor != null)
     {
         defaultColor = currentEditingButton.buttonColor;
-        selectedColor = defaultColor; // Gán giá trị ban đầu
-        selectedColor.a = 1f; // Đảm bảo alpha là 1
+        selectedColor = defaultColor;
+        selectedColor.a = 1f;
         Debug.Log($"Button color retrieved: {ColorUtility.ToHtmlStringRGB(selectedColor)} with alpha: {selectedColor.a}");
     }
     else
@@ -69,7 +69,7 @@ public class ColorButtonCustomizer : MonoBehaviour
         Debug.LogWarning("Button color is null, defaulting to white.");
         defaultColor = Color.white;
         selectedColor = defaultColor;
-        selectedColor.a = 1f; // Đảm bảo alpha là 1
+        selectedColor.a = 1f;
     }
 
     colorPalettePanel.SetActive(true);
@@ -84,8 +84,9 @@ public class ColorButtonCustomizer : MonoBehaviour
 
     if (canvasGroup != null)
     {
-        canvasGroup.interactable = false;
-        canvasGroup.blocksRaycasts = false;
+        Debug.Log($"CanvasGroup 'Bt color' alpha: {canvasGroup.alpha}"); // Debug alpha của canvasGroup
+        canvasGroup.interactable = false; // Khóa tương tác
+        canvasGroup.blocksRaycasts = false; // Khóa tương tác
         Debug.Log("Blocked interaction with other buttons");
     }
 
@@ -95,7 +96,59 @@ public class ColorButtonCustomizer : MonoBehaviour
         Debug.Log("Disabled ColoringManager while palette is open");
     }
 
-    // Tạo danh sách màu động
+    // Debug alpha của tất cả các button trước khi cập nhật
+    ColorButton[] allButtons = FindObjectsOfType<ColorButton>();
+    foreach (var btn in allButtons)
+    {
+        if (btn == null || btn.GetComponent<Button>() == null)
+            continue;
+
+        Button otherButton = btn.GetComponent<Button>();
+        ColorBlock colors = otherButton.colors;
+        Debug.Log($"Before update - Button {btn.gameObject.name} normalColor alpha: {colors.normalColor.a}");
+
+        Image btnImage = btn.GetComponent<Image>();
+        if (btnImage != null)
+        {
+            Debug.Log($"Before update - Button {btn.gameObject.name} image alpha: {btnImage.color.a}");
+        }
+    }
+
+    // Cập nhật hiển thị cho tất cả các button ngay khi palette mở
+    foreach (var btn in allButtons)
+    {
+        if (btn == null || btn.GetComponent<Button>() == null)
+            continue;
+
+        Button otherButton = btn.GetComponent<Button>();
+        ColorBlock colors = otherButton.colors;
+        colors.normalColor = btn.buttonColor; 
+        otherButton.colors = colors;
+
+        Image btnImage = btn.GetComponent<Image>();
+        if (btnImage != null)
+        {
+            btnImage.color = new Color(btnImage.color.r, btnImage.color.g, btnImage.color.b, 1f);
+        }
+    }
+
+    // Debug lại alpha sau khi cập nhật
+    foreach (var btn in allButtons)
+    {
+        if (btn == null || btn.GetComponent<Button>() == null)
+            continue;
+
+        Button otherButton = btn.GetComponent<Button>();
+        ColorBlock colors = otherButton.colors;
+        Debug.Log($"After update - Button {btn.gameObject.name} normalColor alpha: {colors.normalColor.a}");
+
+        Image btnImage = btn.GetComponent<Image>();
+        if (btnImage != null)
+        {
+            Debug.Log($"After update - Button {btn.gameObject.name} image alpha: {btnImage.color.a}");
+        }
+    }
+
     allColors.Clear();
     for (int i = 0; i < numberOfColors; i++)
     {
@@ -104,14 +157,12 @@ public class ColorButtonCustomizer : MonoBehaviour
         allColors.Add(color);
     }
 
-    // Thêm màu mặc định nếu chưa có
     if (!allColors.Exists(c => ColorsApproximatelyEqual(c, defaultColor)))
     {
         allColors.Add(defaultColor);
         Debug.Log($"Added default color {ColorUtility.ToHtmlStringRGB(defaultColor)} to color list.");
     }
 
-    // Thêm màu tùy chỉnh #FE4200 nếu chưa có
     Color customColor;
     if (ColorUtility.TryParseHtmlString("#FE4200", out customColor) && !allColors.Exists(c => ColorsApproximatelyEqual(c, customColor)))
     {
@@ -122,11 +173,10 @@ public class ColorButtonCustomizer : MonoBehaviour
     Transform container = colorPalettePanel.transform;
     CreateColorWheel(container);
 
-    // Cập nhật nháp ngay lập tức với selectedColor
     if (previewCanvas != null && previewTexture != null)
     {
-        ClearPreviewCanvas(); // Xóa nháp cũ
-        DrawOnPreviewCanvas(50, 50); // Vẽ một điểm mẫu ở giữa nháp
+        ClearPreviewCanvas();
+        DrawOnPreviewCanvas(50, 50);
         Debug.Log($"Preview canvas updated with default color: {ColorUtility.ToHtmlStringRGB(selectedColor)} with alpha: {selectedColor.a}");
     }
 
@@ -159,62 +209,57 @@ public class ColorButtonCustomizer : MonoBehaviour
     UpdateResetButtonState();
 }
 
-   private void ResetColor()
-{
-    if (currentEditingButton == null)
+    private void ResetColor()
     {
-        Debug.LogWarning("Cannot reset color: Current editing button is null!");
-        return;
+        if (currentEditingButton == null)
+        {
+            Debug.LogWarning("Cannot reset color: Current editing button is null!");
+            return;
+        }
+
+        selectedColor = currentEditingButton.originalColor;
+        selectedColor.a = 1f;
+
+        if (!allColors.Exists(c => ColorsApproximatelyEqual(c, selectedColor)))
+        {
+            allColors.Add(selectedColor);
+            Debug.Log($"Added original color {ColorUtility.ToHtmlStringRGB(selectedColor)} to color list.");
+            CreateColorWheel(colorPalettePanel.transform);
+        }
+
+        int originalIndex = colorImages.FindIndex(img => ColorsApproximatelyEqual(img.color, selectedColor));
+        if (originalIndex >= 0 && brightnessSlider != null)
+        {
+            float sliderValue = (float)originalIndex / (colorImages.Count - 1);
+            brightnessSlider.value = sliderValue;
+            UpdateColorSelectorPosition(sliderValue);
+            Debug.Log($"Reset to original color index: {originalIndex}, slider value: {sliderValue}, selectedColor: {ColorUtility.ToHtmlStringRGB(selectedColor)}");
+        }
+        else
+        {
+            brightnessSlider.value = 1f;
+            UpdateColorSelectorPosition(1f);
+        }
+
+        UpdateButtonVisuals();
+
+        if (colorInputField != null)
+        {
+            string hexColor = ColorUtility.ToHtmlStringRGB(selectedColor);
+            colorInputField.text = hexColor;
+            colorInputField.textComponent.SetAllDirty();
+            Debug.Log("Color input field updated with hex after reset: " + hexColor);
+        }
+
+        UpdateResetButtonState();
     }
-
-    selectedColor = currentEditingButton.originalColor;
-    selectedColor.a = 1f; // Đảm bảo alpha là 1
-
-    // Kiểm tra xem originalColor có trong danh sách màu không, nếu không thì thêm vào
-    if (!allColors.Exists(c => ColorsApproximatelyEqual(c, selectedColor)))
-    {
-        allColors.Add(selectedColor);
-        Debug.Log($"Added original color {ColorUtility.ToHtmlStringRGB(selectedColor)} to color list.");
-        CreateColorWheel(colorPalettePanel.transform); // Tái tạo vòng tròn màu
-    }
-
-    int originalIndex = colorImages.FindIndex(img => ColorsApproximatelyEqual(img.color, selectedColor));
-    if (originalIndex >= 0 && brightnessSlider != null)
-    {
-        float sliderValue = (float)originalIndex / (colorImages.Count - 1);
-        brightnessSlider.value = sliderValue;
-        UpdateColorSelectorPosition(sliderValue);
-        Debug.Log($"Reset to original color index: {originalIndex}, slider value: {sliderValue}, selectedColor: {ColorUtility.ToHtmlStringRGB(selectedColor)}");
-    }
-    else
-    {
-        brightnessSlider.value = 0.5f;
-        UpdateColorSelectorPosition(0.5f);
-        Debug.LogWarning("Original color not found in wheel, slider set to 0.5");
-    }
-
-    UpdateButtonVisuals();
-
-    if (colorInputField != null)
-    {
-        string hexColor = ColorUtility.ToHtmlStringRGB(selectedColor);
-        colorInputField.text = hexColor;
-        colorInputField.textComponent.SetAllDirty();
-        Debug.Log("Color input field updated with hex after reset: " + hexColor);
-    }
-
-    UpdateResetButtonState();
-}
-
+private List<GameObject> colorOptionPool = new List<GameObject>();
     private void CreateColorWheel(Transform paletteContainer)
     {
-        foreach (Transform child in paletteContainer)
-        {
-            if (child.name.StartsWith("ColorOption_") || child.name == "BrightnessSlider" || child.name == "ApplyButton" || child.name == "PreviewCanvas" || child.name == "ColorSelector" || child.name == "ColorInput" || child.name == "ResetButton" || child.name == "BrightnessLabel")
-            {
-                Destroy(child.gameObject);
-            }
-        }
+        foreach (var obj in colorOptionPool)
+    {
+        obj.SetActive(false);
+    }
 
         colorSelector = new GameObject("ColorSelector");
         colorSelector.transform.SetParent(paletteContainer, false);
@@ -522,61 +567,62 @@ public class ColorButtonCustomizer : MonoBehaviour
         UpdateResetButtonState();
     }
 
-   private void UpdateColorSelectorPosition(float sliderValue)
-{
-    int colorIndex = Mathf.FloorToInt(sliderValue * (colorImages.Count - 1));
-    colorIndex = Mathf.Clamp(colorIndex, 0, colorImages.Count - 1);
-    float angle = (float)colorIndex / colorImages.Count * 360f;
-    float x = Mathf.Cos(angle * Mathf.Deg2Rad) * radius;
-    float y = Mathf.Sin(angle * Mathf.Deg2Rad) * radius;
-    selectorRect.anchoredPosition = new Vector2(x, y);
-
-    Image currentColor = colorImages[colorIndex];
-    if (currentColor != null)
+    private void UpdateColorSelectorPosition(float sliderValue)
     {
-        selectedColor = currentColor.color;
-        selectedColor.a = 1f; // Đảm bảo alpha là 1
-        colorSelector.GetComponent<Image>().color = selectedColor;
-        UpdateButtonVisuals();
-        UpdatePreviewCanvas(); // Cập nhật nháp
-        Debug.Log($"Color selector updated to: {ColorUtility.ToHtmlStringRGB(selectedColor)} with alpha: {selectedColor.a} at index: {colorIndex}");
-    }
-}
+        int colorIndex = Mathf.FloorToInt(sliderValue * (colorImages.Count - 1));
+        colorIndex = Mathf.Clamp(colorIndex, 0, colorImages.Count - 1);
+        float angle = (float)colorIndex / colorImages.Count * 360f;
+        float x = Mathf.Cos(angle * Mathf.Deg2Rad) * radius;
+        float y = Mathf.Sin(angle * Mathf.Deg2Rad) * radius;
+        selectorRect.anchoredPosition = new Vector2(x, y);
 
-private void AdjustBrightness(float brightness)
-{
-    UpdateColorSelectorPosition(brightness);
-
-    if (colorInputField != null)
-    {
-        string hexColor = ColorUtility.ToHtmlStringRGB(selectedColor);
-        colorInputField.text = hexColor;
-        colorInputField.textComponent.SetAllDirty();
-        Debug.Log($"Slider adjusted to {brightness}, new color: {hexColor}");
+        Image currentColor = colorImages[colorIndex];
+        if (currentColor != null)
+        {
+            selectedColor = currentColor.color;
+            selectedColor.a = 1f;
+            colorSelector.GetComponent<Image>().color = selectedColor;
+            UpdateButtonVisuals();
+            UpdatePreviewCanvas();
+            Debug.Log($"Color selector updated to: {ColorUtility.ToHtmlStringRGB(selectedColor)} with alpha: {selectedColor.a} at index: {colorIndex}");
+        }
     }
 
-    if (brightnessLabelText != null)
+    private void AdjustBrightness(float brightness)
     {
-        brightnessLabelText.text = $"Color Select: {brightness:F1}";
+        UpdateColorSelectorPosition(brightness);
+
+        if (colorInputField != null)
+        {
+            string hexColor = ColorUtility.ToHtmlStringRGB(selectedColor);
+            colorInputField.text = hexColor;
+            colorInputField.textComponent.SetAllDirty();
+            Debug.Log($"Slider adjusted to {brightness}, new color: {hexColor}");
+        }
+
+        if (brightnessLabelText != null)
+        {
+            brightnessLabelText.text = $"Color Select: {brightness:F1}";
+        }
+
+        UpdatePreviewCanvas();
+        UpdateResetButtonState();
     }
 
-    UpdatePreviewCanvas(); // Cập nhật nháp
-    UpdateResetButtonState();
-}
     private void UpdatePreviewCanvas()
-{
-    if (previewCanvas != null && previewTexture != null)
     {
-        ClearPreviewCanvas();
-        Color drawColor = selectedColor;
-        drawColor.a = 1f; // Đảm bảo alpha là 1 khi vẽ
-        Color tempColor = selectedColor; // Lưu giá trị gốc
-        selectedColor = drawColor; // Sử dụng màu với alpha 1 để vẽ
-        DrawOnPreviewCanvas(50, 50); // Vẽ lại nháp với selectedColor
-        selectedColor = tempColor; // Khôi phục giá trị gốc của selectedColor
-        Debug.Log($"Preview canvas updated with color: {ColorUtility.ToHtmlStringRGB(drawColor)} with alpha: {drawColor.a}");
+        if (previewCanvas != null && previewTexture != null)
+        {
+            ClearPreviewCanvas();
+            Color drawColor = selectedColor;
+            drawColor.a = 1f;
+            Color tempColor = selectedColor;
+            selectedColor = drawColor;
+            DrawOnPreviewCanvas(50, 50);
+            selectedColor = tempColor;
+            Debug.Log($"Preview canvas updated with color: {ColorUtility.ToHtmlStringRGB(drawColor)} with alpha: {drawColor.a}");
+        }
     }
-}
 
     public void ApplySelectedColor()
     {
@@ -666,7 +712,7 @@ private void AdjustBrightness(float brightness)
         {
             ColorBlock colors = uiButton.colors;
             Color normalColor = selectedColor;
-            normalColor.a = 0.5f;
+            normalColor.a = 1f; // Không làm mờ, giữ alpha = 1
             colors.normalColor = normalColor;
             uiButton.colors = colors;
             uiButton.enabled = true;

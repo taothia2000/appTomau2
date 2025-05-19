@@ -748,24 +748,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1025926606}
   m_CullTransparentMesh: 1
---- !u!1 &1109978070 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 6537174390628103559, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
-  m_PrefabInstance: {fileID: 2212539332016371137}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1109978074
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1109978070}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 40d0df9e163e65c42951e5e0b5d0a90d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  Main: Test
 --- !u!224 &1200105334 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 3172165676414167004, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
@@ -1059,24 +1041,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 519420032}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1810252437 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 4277947483848487544, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
-  m_PrefabInstance: {fileID: 2212539332016371137}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1810252441
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1810252437}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 40d0df9e163e65c42951e5e0b5d0a90d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  Main: Test
 --- !u!1 &1864501258
 GameObject:
   m_ObjectHideFlags: 0
@@ -1219,8 +1183,16 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 457387906889469857, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
       propertyPath: Main
-      value: Test
+      value: Caubebotbi
       objectReference: {fileID: 0}
+    - target: {fileID: 544532888316101443, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: db532a4f4f54c6c45bc12dcdc81263cd, type: 3}
+    - target: {fileID: 1177546239188216431, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 7b1c55b3c97b7df419b12a029555f4c7, type: 3}
     - target: {fileID: 3172165676414167004, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
       propertyPath: m_Pivot.x
       value: 0.5
@@ -1305,36 +1277,42 @@ PrefabInstance:
       propertyPath: m_Name
       value: Scroll
       objectReference: {fileID: 0}
-    - target: {fileID: 5185729270800055492, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
-      propertyPath: m_Sprite
-      value: 
-      objectReference: {fileID: 21300000, guid: 4acb1248f8603e8418fece6f03251747, type: 3}
-    - target: {fileID: 5552133591076451282, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
-      propertyPath: m_SizeDelta.x
-      value: 232.45
+    - target: {fileID: 5036513589419103584, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: Main
+      value: chuchocanhsat
       objectReference: {fileID: 0}
-    - target: {fileID: 5552133591076451282, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 224.19
+    - target: {fileID: 5133903290224836051, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
-    - target: {fileID: 5552133591076451282, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: 1777.69
+    - target: {fileID: 6537174390628103559, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: m_Name
+      value: chu cho canh sat
       objectReference: {fileID: 0}
-    - target: {fileID: 5552133591076451282, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: -141.55
+    - target: {fileID: 6863063707520079343, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: m_Name
+      value: Cau be bot bi
+      objectReference: {fileID: 0}
+    - target: {fileID: 7724685611467648462, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: m_Name
+      value: Hello Kitty
+      objectReference: {fileID: 0}
+    - target: {fileID: 8229228997857103474, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: m_Name
+      value: Tom & Jerry
+      objectReference: {fileID: 0}
+    - target: {fileID: 8922187380090710387, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: Main
+      value: HelloKitty
+      objectReference: {fileID: 0}
+    - target: {fileID: 9107489145185470301, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: Main
+      value: Tom&Jerry
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 6537174390628103559, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1109978074}
-    - targetCorrespondingSourceObject: {fileID: 4277947483848487544, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1810252441}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

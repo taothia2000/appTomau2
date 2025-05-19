@@ -51,7 +51,7 @@ public class ColoringManager : MonoBehaviour
     private List<Vector2Int> modifiedPixels = new List<Vector2Int>(1000);
     private bool isModifying = false;
     private int frameCounter = 0;
-    private const int APPLY_FREQUENCY = 2;
+    private const int APPLY_FREQUENCY = 1;
     private int maxBrushSize = 120;
     
     // State tracking
@@ -208,28 +208,29 @@ public class ColoringManager : MonoBehaviour
 }
 
     private void PrecomputeBrushOffsets()
+{
+    brushOffsetCache = new List<Vector2Int>[maxBrushSize + 1];
+
+    for (int radius = 1; radius <= maxBrushSize; radius++)
     {
-        // Pre-compute pixel offsets for circular brushes of various sizes
-        brushOffsetCache = new List<Vector2Int>[maxBrushSize + 1];
-        
-        for (int radius = 1; radius <= maxBrushSize; radius++)
+        brushOffsetCache[radius] = new List<Vector2Int>();
+        int radiusSquared = radius * radius;
+
+        // Giảm mật độ pixel ngay từ khi tính offset
+        int step = radius > 50 ? 3 : 1; // Giảm mạnh hơn với brush size lớn
+        for (int x = -radius; x <= radius; x += step)
         {
-            brushOffsetCache[radius] = new List<Vector2Int>();
-            int radiusSquared = radius * radius;
-            
-            for (int x = -radius; x <= radius; x++)
+            for (int y = -radius; y <= radius; y += step)
             {
-                for (int y = -radius; y <= radius; y++)
+                int distSquared = x * x + y * y;
+                if (distSquared <= radiusSquared)
                 {
-                    int distSquared = x * x + y * y;
-                    if (distSquared <= radiusSquared)
-                    {
-                        brushOffsetCache[radius].Add(new Vector2Int(x, y));
-                    }
+                    brushOffsetCache[radius].Add(new Vector2Int(x, y));
                 }
             }
         }
     }
+}
 
     private void InitializeCrayonTexture()
     {
@@ -512,29 +513,30 @@ private float CalculateCursorWorldSize(float brushSizeInPixels)
 
     void HandleDrawInput()
     {
+       if (Input.GetMouseButtonDown(0))
+    {
         if (Input.GetMouseButtonDown(0))
         {
-            if (Input.GetMouseButtonDown(0))
-            {
-                SaveCurrentState();
-            }
-            isModifying = true;
-            lastDrawPosition = null;
-            modifiedPixels.Clear();
+            SaveCurrentState();
         }
-        else if (Input.GetMouseButtonUp(0))
+        isModifying = true;
+        lastDrawPosition = null;
+        modifiedPixels.Clear();
+    }
+    else if (Input.GetMouseButtonUp(0))
+    {
+        isModifying = false;
+        lastDrawPosition = null;
+        isUndoing = false;
+
+        // Chỉ gọi Apply() khi thả chuột
+        if (needsApply)
         {
-            isModifying = false;
-            lastDrawPosition = null;
-            isUndoing = false;
-            
-            if (needsApply)
-            {
-                coloringTexture.Apply();
-                needsApply = false;
-            }
-            return;
+            coloringTexture.Apply();
+            needsApply = false;
         }
+        return;
+    }
         
         if (!isModifying || !Input.GetMouseButton(0))
             return;
@@ -782,63 +784,121 @@ void RestoreOriginalPixels(int centerX, int centerY, int radius)
     }
 
     private void DrawCrayonSpot(int x, int y, Color color, int radius)
+{
+    // Tính Perlin noise một lần cho toàn bộ spot
+    float baseNoise = Mathf.PerlinNoise(x * 0.08f, y * 0.08f);
+    float noise1 = Mathf.PerlinNoise(x * 0.3f + baseNoise, y * 0.3f + baseNoise);
+
+    foreach (var offset in brushOffsetCache[radius])
     {
-        float baseNoise = Mathf.PerlinNoise(x * 0.08f, y * 0.08f);
-        
-        foreach (var offset in brushOffsetCache[radius])
+        int currentX = x + offset.x;
+        int currentY = y + offset.y;
+
+        if (IsInTextureBounds(currentX, currentY))
         {
-            int currentX = x + offset.x;
-            int currentY = y + offset.y;
-            
-            if (IsInTextureBounds(currentX, currentY))
+            Color existingColor = coloringTexture.GetPixel(currentX, currentY);
+            if (existingColor.a > 0.1f && !IsOutlinePixel(existingColor))
             {
-                Color existingColor = coloringTexture.GetPixel(currentX, currentY);
-                if (existingColor.a > 0.1f && !IsOutlinePixel(existingColor))
-                {
-                    float distanceFromCenter = Mathf.Sqrt(offset.x * offset.x + offset.y * offset.y) / radius;
-                    
-                    float pressure = Mathf.Pow(1 - distanceFromCenter, 1.5f);
-                    
-                    float noise1 = Mathf.PerlinNoise(currentX * 0.3f, currentY * 0.3f);
-                    float noise2 = Mathf.PerlinNoise(currentX * 0.5f + baseNoise, currentY * 0.5f + baseNoise);
-                    float noise3 = Mathf.PerlinNoise(currentX * 0.7f + 100, currentY * 0.7f + 100);
-                    
-                    float combinedNoise = noise1 * 0.5f + noise2 * 0.3f + noise3 * 0.2f;
-                    
-                    float edgeEffect = Mathf.Lerp(0.7f, 1.0f, Mathf.Pow(combinedNoise, 0.5f));
-                    pressure *= distanceFromCenter > 0.7f ? edgeEffect * 0.8f : edgeEffect;
-                    
-                    float alpha = pressure * (0.7f + combinedNoise * 0.3f);
-                    
-                    Color adjustedColor = new Color(
-                        color.r + (combinedNoise * 0.15f - 0.075f),
-                        color.g + (combinedNoise * 0.15f - 0.075f),
-                        color.b + (combinedNoise * 0.15f - 0.075f),
-                        color.a
-                    );
-                    
-                    Color newColor = Color.Lerp(existingColor, adjustedColor, alpha);
-                    
-                    coloringTexture.SetPixel(currentX, currentY, newColor);
-                    modifiedPixels.Add(new Vector2Int(currentX, currentY));
-                }
+                float distanceFromCenter = Mathf.Sqrt(offset.x * offset.x + offset.y * offset.y) / radius;
+                float pressure = Mathf.Pow(1 - distanceFromCenter, 1.5f);
+
+                float edgeEffect = Mathf.Lerp(0.7f, 1.0f, noise1);
+                pressure *= distanceFromCenter > 0.7f ? edgeEffect * 0.8f : edgeEffect;
+
+                float alpha = pressure * (0.7f + noise1 * 0.3f);
+
+                Color adjustedColor = new Color(
+                    color.r + (noise1 * 0.15f - 0.075f),
+                    color.g + (noise1 * 0.15f - 0.075f),
+                    color.b + (noise1 * 0.15f - 0.075f),
+                    color.a
+                );
+
+                Color newColor = Color.Lerp(existingColor, adjustedColor, alpha);
+                coloringTexture.SetPixel(currentX, currentY, newColor);
+                modifiedPixels.Add(new Vector2Int(currentX, currentY));
+            }
+        }
+    }
+}
+
+   void OptimizedBrushAtPosition(Vector2 pos, Color color, float brushSize)
+{
+    Vector2 pixelPos = WorldToTextureCoordinates(pos);
+    int x = (int)pixelPos.x;
+    int y = (int)pixelPos.y;
+
+    int radius = Mathf.Min(Mathf.RoundToInt(brushSize), maxBrushSize);
+
+    // Giảm mật độ pixel với brush size lớn
+    int step = radius > 50 ? 2 : 1;
+    foreach (var offset in brushOffsetCache[radius])
+    {
+        if (offset.x % step != 0 || offset.y % step != 0) // Bỏ qua một số pixel
+            continue;
+
+        int currentX = x + offset.x;
+        int currentY = y + offset.y;
+
+        if (IsInTextureBounds(currentX, currentY))
+        {
+            Color existingColor = coloringTexture.GetPixel(currentX, currentY);
+            if (existingColor.a > 0.1f && !IsOutlinePixel(existingColor))
+            {
+                float distSquared = offset.x * offset.x + offset.y * offset.y;
+                float distance = Mathf.Sqrt(distSquared);
+                float alpha = Mathf.Pow(1 - (distance / radius), 2) * 0.2f;
+                Color blendedColor = Color.Lerp(existingColor, color, alpha);
+                coloringTexture.SetPixel(currentX, currentY, blendedColor);
+                modifiedPixels.Add(new Vector2Int(currentX, currentY));
             }
         }
     }
 
-    void OptimizedBrushAtPosition(Vector2 pos, Color color, float brushSize)
+    if (lastDrawPosition.HasValue)
     {
-        Vector2 pixelPos = WorldToTextureCoordinates(pos);
-        int x = (int)pixelPos.x;
-        int y = (int)pixelPos.y;
+        Vector2 lastLocal = lastDrawPosition.Value;
+        int lastX = Mathf.RoundToInt(lastLocal.x * textureWidth);
+        int lastY = Mathf.RoundToInt(lastLocal.y * textureHeight);
 
-        int radius = Mathf.Min(Mathf.RoundToInt(brushSize), maxBrushSize);
-        
+        OptimizedDrawSmoothLine(lastX, lastY, x, y, color, radius);
+    }
+
+    Vector2 normalized = new Vector2(
+        pixelPos.x / textureWidth,
+        pixelPos.y / textureHeight
+    );
+
+    lastDrawPosition = normalized;
+    needsApply = true;
+}
+
+    void OptimizedDrawSmoothLine(int x0, int y0, int x1, int y1, Color color, int radius)
+{
+    int dx = Mathf.Abs(x1 - x0);
+    int dy = Mathf.Abs(y1 - y0);
+    float stepCount = Mathf.Max(dx, dy);
+
+    if (stepCount <= 0) return;
+
+    // Giảm số bước với brush size lớn để tăng FPS
+    int actualSteps = Mathf.Min(Mathf.RoundToInt(stepCount), radius > 50 ? 3 : 5); // Giảm số bước
+    float stepSize = 1f / actualSteps;
+
+    int step = radius > 50 ? 3 : 1; // Giảm mật độ pixel mạnh hơn
+    for (float t = 0; t <= 1; t += stepSize)
+    {
+        int x = Mathf.RoundToInt(Mathf.Lerp(x0, x1, t));
+        int y = Mathf.RoundToInt(Mathf.Lerp(y0, y1, t));
+
         foreach (var offset in brushOffsetCache[radius])
         {
+            if (offset.x % step != 0 || offset.y % step != 0) // Bỏ qua pixel để giảm tải
+                continue;
+
             int currentX = x + offset.x;
             int currentY = y + offset.y;
-            
+
             if (IsInTextureBounds(currentX, currentY))
             {
                 Color existingColor = coloringTexture.GetPixel(currentX, currentY);
@@ -846,73 +906,18 @@ void RestoreOriginalPixels(int centerX, int centerY, int radius)
                 {
                     float distSquared = offset.x * offset.x + offset.y * offset.y;
                     float distance = Mathf.Sqrt(distSquared);
-                    float alpha = Mathf.Pow(1 - (distance / radius), 2) * 0.2f; 
-                    
+                    float alpha = Mathf.Pow(1 - (distance / radius), 2) * 0.2f;
                     Color blendedColor = Color.Lerp(existingColor, color, alpha);
                     coloringTexture.SetPixel(currentX, currentY, blendedColor);
                     modifiedPixels.Add(new Vector2Int(currentX, currentY));
                 }
             }
         }
-
-        if (lastDrawPosition.HasValue)
-        {
-            Vector2 lastLocal = lastDrawPosition.Value;
-            int lastX = Mathf.RoundToInt(lastLocal.x * textureWidth);
-            int lastY = Mathf.RoundToInt(lastLocal.y * textureHeight);
-            
-            // Draw smooth line between points
-            OptimizedDrawSmoothLine(lastX, lastY, x, y, color, radius);
-        }
-        
-        Vector2 normalized = new Vector2(
-            pixelPos.x / textureWidth,
-            pixelPos.y / textureHeight
-        );
-        
-        lastDrawPosition = normalized;
-        needsApply = true;
     }
 
-    void OptimizedDrawSmoothLine(int x0, int y0, int x1, int y1, Color color, int radius)
-    {
-        int dx = Mathf.Abs(x1 - x0);
-        int dy = Mathf.Abs(y1 - y0);
-        float stepCount = Mathf.Max(dx, dy);
-        
-        if (stepCount <= 0) return;
-        
-        int actualSteps = Mathf.Min(Mathf.RoundToInt(stepCount), 10);
-        float stepSize = 1f / actualSteps;
-        
-        for (float t = 0; t <= 1; t += stepSize)
-        {
-            int x = Mathf.RoundToInt(Mathf.Lerp(x0, x1, t));
-            int y = Mathf.RoundToInt(Mathf.Lerp(y0, y1, t));
-            
-            foreach (var offset in brushOffsetCache[radius])
-            {
-                int currentX = x + offset.x;
-                int currentY = y + offset.y;
-                
-                if (IsInTextureBounds(currentX, currentY))
-                {
-                    Color existingColor = coloringTexture.GetPixel(currentX, currentY);
-                    if (existingColor.a > 0.1f && !IsOutlinePixel(existingColor))
-                    {
-                        float distSquared = offset.x * offset.x + offset.y * offset.y;
-                        float distance = Mathf.Sqrt(distSquared);
-                        float alpha = Mathf.Pow(1 - (distance / radius), 2) * 0.2f;
-                        
-                        Color blendedColor = Color.Lerp(existingColor, color, alpha);
-                        coloringTexture.SetPixel(currentX, currentY, blendedColor);
-                        modifiedPixels.Add(new Vector2Int(currentX, currentY));
-                    }
-                }
-            }
-        }
-        hasChanges = true;
-    }
+    needsApply = true;
+    hasChanges = true;
+}
     
     #endregion
 
@@ -1119,10 +1124,6 @@ void RestoreOriginalPixels(int centerX, int centerY, int radius)
         undoStack.Push(clearState);
         
         hasChanges = false;
-    }
-    else
-    {
-        Debug.LogError("originalOutlineState is null or empty. Cannot clear canvas.");
     }
 }
     

@@ -9,7 +9,7 @@ public class SaveNotificationPopup : MonoBehaviour
     [SerializeField] private TextMeshProUGUI messageText;
     [SerializeField] private Button okButton;
     [SerializeField] private Button viewProgressButton;
-    [SerializeField] private float autoHideDelay = 3f; // Thời gian tự động tắt thông báo
+    [SerializeField] private float autoHideDelay = 3f; 
     
     private static SaveNotificationPopup _instance;
     public static SaveNotificationPopup Instance
@@ -161,10 +161,7 @@ public class SaveNotificationPopup : MonoBehaviour
         {
             UnityEngine.SceneManagement.SceneManager.LoadScene(stageSceneName);
         }
-        else
-        {
-            Debug.LogError($"Không tìm thấy scene {stageSceneName} trong build settings!");
-        }
+       
     }
     
     private bool SceneExists(string sceneName)

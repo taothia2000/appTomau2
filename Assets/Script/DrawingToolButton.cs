@@ -8,8 +8,8 @@ public class DrawingToolButton : MonoBehaviour
 {
     public ColoringManager coloringManager;
     public ColoringManager.DrawingMode drawingMode;
-    public Sprite onSprite;    // Sprite khi nút được chọn
-    public Sprite offSprite;   // Sprite khi nút không được chọn
+    public Sprite onSprite;
+    public Sprite offSprite;
     private Button button;
     private Image buttonImage;
     private Texture2D drawCursor;   
@@ -20,7 +20,6 @@ public class DrawingToolButton : MonoBehaviour
         button = GetComponent<Button>();
         buttonImage = GetComponent<Image>();
         
-        // Set sprite ban đầu là off
         if (buttonImage != null && offSprite != null)
         {
             buttonImage.sprite = offSprite;
@@ -29,7 +28,6 @@ public class DrawingToolButton : MonoBehaviour
 
     private void HighlightSelectedButton()
     {
-        // Reset tất cả các nút về trạng thái off
         DrawingToolButton[] allButtons = FindObjectsOfType<DrawingToolButton>();
         foreach (var btn in allButtons)
         {
@@ -39,7 +37,6 @@ public class DrawingToolButton : MonoBehaviour
             }
         }
 
-        // Set nút được chọn về trạng thái on
         if (buttonImage != null && onSprite != null)
         {
             buttonImage.sprite = onSprite;
@@ -48,7 +45,6 @@ public class DrawingToolButton : MonoBehaviour
 
     private void SetCursorForTool()
     {
-        // Thêm kiểm tra null trước khi sử dụng cursor
         if (drawCursor == null || brushCursor == null)
         {
             Cursor.SetCursor(null, Vector2.zero, CursorMode.Auto);
@@ -70,7 +66,6 @@ public class DrawingToolButton : MonoBehaviour
                 break;
         }
 
-        // Kiểm tra texture hợp lệ trước khi set
         if (cursorToUse != null && cursorToUse.isReadable)
         {
             Cursor.SetCursor(cursorToUse, hotspot, CursorMode.Auto);

@@ -11,7 +11,6 @@ public class ImageListItem : MonoBehaviour
     
     private string imageId;
     
-    // Event khi người dùng nhấp vào
     public System.Action<string> OnItemClicked;
     
     public void Setup(string id, Texture2D texture, string lastSaved, bool isCompleted)
@@ -20,18 +19,17 @@ public class ImageListItem : MonoBehaviour
     
     if (texture != null && thumbnail != null)
     {
-        // Tạo sprite với pivot point ở giữa
         Sprite thumbnailSprite = Sprite.Create(
             texture,
             new Rect(0, 0, texture.width, texture.height),
-            new Vector2(0.5f, 0.5f), // Pivot point ở giữa
-            100f, // Pixels per unit
-            0, // Extrude edges
+            new Vector2(0.5f, 0.5f),
+            100f,
+            0,
             SpriteMeshType.FullRect
         );
         
         thumbnail.sprite = thumbnailSprite;
-        thumbnail.preserveAspect = true; // Giữ tỷ lệ khung hình
+        thumbnail.preserveAspect = true; 
     }
     
     if (titleText != null) titleText.text = $"Ảnh {id}";
@@ -41,7 +39,6 @@ public class ImageListItem : MonoBehaviour
     
     public void OnClick()
     {
-        // Kích hoạt event khi nhấp vào
         if (OnItemClicked != null)
         {
             OnItemClicked.Invoke(imageId);

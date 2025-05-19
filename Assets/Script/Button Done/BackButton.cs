@@ -24,9 +24,6 @@ public class BackButton : MonoBehaviour
             string previousScene = sceneHistory.Pop();
             SceneManager.LoadScene(previousScene);
         }
-        else
-        {
-            Debug.Log("Không có scene trước đó!");
-        }
+        
     }
 }

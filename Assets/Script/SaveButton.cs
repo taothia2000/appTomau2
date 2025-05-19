@@ -20,29 +20,61 @@ public class SaveButton : MonoBehaviour
         }
     }
 
-    public void OnSaveButtonClick()
+public void OnSaveButtonClick()
+{
+    if (ColoringManager.Instance != null)
     {
-        Debug.Log("Save button clicked");
-        if (ColoringManager.Instance != null)
+        bool saveSuccess = ColoringManager.Instance.SaveCurrentImage();
+        
+        if (saveSuccess)
         {
-            // Save current state
-            bool saveSuccess = ColoringManager.Instance.SaveCurrentImage();
-            
-            if (saveSuccess)
+            if (SaveManager.Instance != null)
             {
-                // Make sure progress is saved
-                if (SaveManager.Instance != null)
+                SaveManager.Instance.SaveProgress();
+            }
+            
+            string targetScene = PlayerPrefs.GetString("SelectedScene", "Test");
+            Debug.Log("Attempting to load scene from PlayerPrefs: " + targetScene);
+            
+            // Debug danh sách scene
+            for (int i = 0; i < SceneManager.sceneCountInBuildSettings; i++)
+            {
+                string scenePath = SceneUtility.GetScenePathByBuildIndex(i);
+                string sceneName = System.IO.Path.GetFileNameWithoutExtension(scenePath);
+                Debug.Log($"Scene at index {i}: {sceneName}");
+            }
+
+            int sceneIndex = -1;
+            for (int i = 0; i < SceneManager.sceneCountInBuildSettings; i++)
+            {
+                string scenePath = SceneUtility.GetScenePathByBuildIndex(i);
+                string sceneName = System.IO.Path.GetFileNameWithoutExtension(scenePath);
+                if (sceneName == targetScene)
                 {
-                    SaveManager.Instance.SaveProgress();
+                    sceneIndex = i;
+                    break;
                 }
-                
-                // Return to stage selection scene
+            }
+
+            if (sceneIndex != -1)
+            {
+                Debug.Log($"Loading scene at index {sceneIndex}: {targetScene}");
+                SceneManager.LoadScene(sceneIndex);
+            }
+            else
+            {
+                Debug.LogWarning($"Scene {targetScene} not found in Build Settings. Loading default scene 'Test'.");
                 SceneManager.LoadScene("Test");
             }
         }
         else
         {
-            Debug.LogError("ColoringManager not found!");
+            Debug.LogWarning("Save failed. Not loading new scene.");
         }
     }
+    else
+    {
+        Debug.LogWarning("ColoringManager.Instance is null.");
+    }
+}
 }

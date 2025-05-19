@@ -22,7 +22,6 @@ public class EraserSizeSlider : MonoBehaviour
             coloringManager = FindObjectOfType<ColoringManager>();
             if (coloringManager == null)
             {
-                Debug.LogError("Không tìm thấy ColoringManager!");
                 return;
             }
         }
@@ -33,7 +32,6 @@ public class EraserSizeSlider : MonoBehaviour
             sizeSlider = GetComponent<Slider>();
             if (sizeSlider == null)
             {
-                Debug.LogError("Không tìm thấy Slider component!");
                 return;
             }
         }

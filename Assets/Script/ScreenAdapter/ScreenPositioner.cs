@@ -5,12 +5,12 @@ public class ScreenPositioner : MonoBehaviour
     public enum ScreenAnchor { TopLeft, Top, TopRight, Left, Center, Right, BottomLeft, Bottom, BottomRight }
     public ScreenAnchor anchorPosition;
     public Vector2 offset;
-    public bool adjustScale = true; // Đảm bảo luôn bật
-    public float scaleMultiplier = 0.5f; // Tăng lên để hiệu ứng rõ ràng hơn
+    public bool adjustScale = true; 
+    public float scaleMultiplier = 0.5f; 
     
     private Vector2 lastScreenSize;
     private Vector3 originalScale;
-    private float baseScreenHeight = 1080f; // Màn hình tham chiếu
+    private float baseScreenHeight = 1080f; 
 
     void Start()
     {
@@ -21,7 +21,6 @@ public class ScreenPositioner : MonoBehaviour
 
     void Update()
     {
-        // Cải thiện kiểm tra thay đổi kích thước màn hình
         if (Mathf.Abs(Screen.width - lastScreenSize.x) > 0.1f || 
             Mathf.Abs(Screen.height - lastScreenSize.y) > 0.1f)
         {
@@ -35,7 +34,6 @@ public class ScreenPositioner : MonoBehaviour
         Camera cam = Camera.main;
         Vector3 viewportPosition = Vector3.zero;
         
-        // Xác định vị trí viewport như cũ
         switch (anchorPosition)
         {
             case ScreenAnchor.TopLeft:      viewportPosition = new Vector3(0, 1, 0); break;
@@ -84,8 +82,6 @@ public class ScreenPositioner : MonoBehaviour
         
         transform.localScale = newScale;
         
-        Debug.Log($"Screen size: {Screen.width}x{Screen.height}, Width Ratio: {widthRatio}, " +
-                 $"Height Ratio: {heightRatio}, Final Scale: {newScale}");
     }
     else
     {
