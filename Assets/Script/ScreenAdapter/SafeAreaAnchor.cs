@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.UI;
 
 [ExecuteInEditMode]
 public class SafeAreaAnchor : MonoBehaviour
@@ -11,98 +12,153 @@ public class SafeAreaAnchor : MonoBehaviour
         TopLeft, TopCenter, TopRight
     }
 
-    public AnchorType anchorType;
+    public AnchorType anchorType = AnchorType.BottomCenter; // Mặc định là BottomCenter để giữ dưới cùng
     public Vector3 anchorOffset;
-    public bool stretchToSafeArea; // Bật stretch dựa trên kích thước safe area
-    public Vector2 stretchRatio = Vector2.one; // Tỷ lệ stretch (0-1) so với kích thước safe area
+    public bool stretchToSafeArea;
+    public Vector2 stretchRatio = Vector2.one;
+    [Tooltip("Maximum size for sizeDelta to prevent extreme scaling")]
+    public Vector2 maxSizeDelta = new Vector2(2000, 2000);
+    [Tooltip("Minimum size for sizeDelta to prevent extreme scaling")]
+    public Vector2 minSizeDelta = new Vector2(100, 100);
 
     private IEnumerator updateAnchorRoutine;
+    private Rect lastSafeArea;
+    private Vector2 lastScreenSize;
+    private RectTransform rectTransform;
+    private CanvasScaler canvasScaler;
+    private ScrollRect scrollRect;
 
     void Start()
     {
+        rectTransform = GetComponent<RectTransform>();
+        Canvas canvas = GetComponentInParent<Canvas>();
+        canvasScaler = canvas ? canvas.GetComponent<CanvasScaler>() : null;
+        scrollRect = GetComponentInParent<ScrollRect>();
+
+        lastSafeArea = Screen.safeArea;
+        lastScreenSize = new Vector2(Screen.width, Screen.height);
         updateAnchorRoutine = UpdateAnchorAsync();
         StartCoroutine(updateAnchorRoutine);
+
+        Debug.Log($"[Start] Initial Screen.safeArea: {Screen.safeArea}, Screen Size: {Screen.width}x{Screen.height}, AnchorType: {anchorType}");
+    }
+
+    void Update()
+    {
+        Vector2 currentScreenSize = new Vector2(Screen.width, Screen.height);
+        if (!lastSafeArea.Equals(Screen.safeArea) || lastScreenSize != currentScreenSize)
+        {
+            Debug.Log($"[Update] Screen.safeArea changed to: {Screen.safeArea}, Screen Size changed to: {Screen.width}x{Screen.height}");
+            lastSafeArea = Screen.safeArea;
+            lastScreenSize = currentScreenSize;
+            UpdateAnchor();
+        }
     }
 
     IEnumerator UpdateAnchorAsync()
     {
-        // Đợi vài frame để đảm bảo Screen.safeArea đã được khởi tạo
         uint waitCycles = 0;
-        while (Screen.safeArea.width == 0 || Screen.safeArea.height == 0)
+        while (Screen.safeArea.width == 0 || Screen.safeArea.height == 0 || Screen.width == 0 || Screen.height == 0)
         {
+            Debug.Log($"[UpdateAnchorAsync] Waiting... Frame {waitCycles}, Current Screen.safeArea: {Screen.safeArea}, Screen Size: {Screen.width}x{Screen.height}");
             ++waitCycles;
             yield return new WaitForEndOfFrame();
         }
         if (waitCycles > 0)
         {
-            Debug.Log($"SafeAreaAnchor initialized after {waitCycles} frame(s).");
+            Debug.Log($"[UpdateAnchorAsync] Initialized after {waitCycles} frame(s). Final Screen.safeArea: {Screen.safeArea}, Screen Size: {Screen.width}x{Screen.height}");
         }
+        lastSafeArea = Screen.safeArea;
+        lastScreenSize = new Vector2(Screen.width, Screen.height);
         UpdateAnchor();
         updateAnchorRoutine = null;
     }
 
-void UpdateAnchor()
-{
-    Vector3 anchorPos = GetAnchorPosition(anchorType);
-
-    if (stretchToSafeArea)
+    void UpdateAnchor()
     {
-        // Lấy kích thước safe area
-        float safeAreaWidth = Screen.safeArea.width;
-        float safeAreaHeight = Screen.safeArea.height;
-
-        // Kiểm tra safe area hợp lệ
-        if (safeAreaWidth <= 0 || safeAreaHeight <= 0)
+        if (Screen.safeArea.width <= 0 || Screen.safeArea.height <= 0 || Screen.width <= 0 || Screen.height <= 0)
         {
-            Debug.LogWarning("SafeArea is invalid, skipping update.");
+            Debug.LogWarning($"[UpdateAnchor] SafeArea or Screen size is invalid: Screen.safeArea: {Screen.safeArea}, Screen Size: {Screen.width}x{Screen.height}");
             return;
         }
 
-        // Đảm bảo stretchRatio hợp lệ
-        stretchRatio.x = Mathf.Clamp01(stretchRatio.x);
-        stretchRatio.y = Mathf.Clamp01(stretchRatio.y);
+        Vector3 anchorPos = GetAnchorPosition(anchorType);
+        Debug.Log($"[UpdateAnchor] Calculated AnchorPos: {anchorPos}");
 
-        // Tính kích thước dựa trên safe area và stretchRatio
-        Vector2 size = new Vector2(
-            safeAreaWidth * stretchRatio.x,
-            safeAreaHeight * stretchRatio.y
-        );
-
-        // Điều chỉnh vị trí (giữa khu vực stretch)
-        Vector3 newPos = anchorPos + new Vector3(
-            size.x * 0.5f * (anchorType == AnchorType.BottomLeft || anchorType == AnchorType.MiddleLeft || anchorType == AnchorType.TopLeft ? 1 : 0),
-            size.y * 0.5f * (anchorType == AnchorType.BottomLeft || anchorType == AnchorType.BottomCenter || anchorType == AnchorType.BottomRight ? 1 : 0),
-            0f
-        ) + anchorOffset;
-
-        // Nếu là UI (có RectTransform), điều chỉnh sizeDelta thay vì localScale
-        RectTransform rectTransform = GetComponent<RectTransform>();
-        if (rectTransform != null)
+        if (stretchToSafeArea)
         {
-            rectTransform.sizeDelta = size; // Đặt kích thước UI bằng sizeDelta
-            rectTransform.position = newPos;
+            float safeAreaWidth = Screen.safeArea.width;
+            float safeAreaHeight = Screen.safeArea.height;
+
+            stretchRatio.x = Mathf.Clamp01(stretchRatio.x);
+            stretchRatio.y = Mathf.Clamp01(stretchRatio.y);
+
+            Vector2 size = new Vector2(safeAreaWidth * stretchRatio.x, safeAreaHeight * stretchRatio.y);
+            Debug.Log($"[UpdateAnchor] Calculated Size: {size}");
+
+            if (canvasScaler != null && canvasScaler.referenceResolution != Vector2.zero)
+            {
+                float scaleFactor = Mathf.Min(
+                    Screen.width / canvasScaler.referenceResolution.x,
+                    Screen.height / canvasScaler.referenceResolution.y
+                );
+                size = new Vector2(
+                    Mathf.Clamp(size.x / scaleFactor, minSizeDelta.x, maxSizeDelta.x),
+                    Mathf.Clamp(size.y / scaleFactor, minSizeDelta.y, maxSizeDelta.y)
+                );
+                Debug.Log($"[UpdateAnchor] Adjusted Size with CanvasScaler (scaleFactor: {scaleFactor}): {size}");
+            }
+            else
+            {
+                size = new Vector2(
+                    Mathf.Clamp(size.x, minSizeDelta.x, maxSizeDelta.x),
+                    Mathf.Clamp(size.y, minSizeDelta.y, maxSizeDelta.y)
+                );
+                Debug.Log($"[UpdateAnchor] Adjusted Size without CanvasScaler: {size}");
+            }
+
+            if (scrollRect != null)
+            {
+                RectTransform content = scrollRect.content;
+                if (content != null)
+                {
+                    content.anchorMin = new Vector2(0, 0);
+                    content.anchorMax = new Vector2(0, 0);
+                    content.pivot = new Vector2(0.5f, 0.5f);
+                    content.sizeDelta = size;
+
+                    Vector3 newPos = anchorPos + anchorOffset;
+                    if (!content.position.Equals(newPos))
+                    {
+                        content.position = newPos;
+                        Debug.Log($"[UpdateAnchor] Applied to ScrollRect Content - NewPos: {newPos}, SizeDelta: {size}");
+                    }
+                }
+            }
+            else if (rectTransform != null)
+            {
+                rectTransform.anchorMin = new Vector2(0, 0);
+                rectTransform.anchorMax = new Vector2(0, 0);
+                rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                rectTransform.sizeDelta = size;
+                Vector3 newPos = anchorPos + anchorOffset;
+                if (!rectTransform.position.Equals(newPos))
+                {
+                    rectTransform.position = newPos;
+                    Debug.Log($"[UpdateAnchor] Applied to RectTransform - NewPos: {newPos}, SizeDelta: {size}");
+                }
+            }
         }
         else
         {
-            // Nếu không phải UI, giữ localScale hợp lý
-            transform.position = newPos;
-            // Đặt localScale theo tỷ lệ hợp lý (ví dụ: chia cho một giá trị lớn để đưa về khoảng 0-1)
-            Vector3 newScale = new Vector3(size.x / 1000f, size.y / 1000f, transform.localScale.z);
-            transform.localScale = newScale;
-        }
-
-        Debug.Log($"AnchorPos: {anchorPos}, Size: {size}, NewPos: {newPos}");
-    }
-    else
-    {
-        // Không stretch, chỉ đặt vị trí
-        Vector3 newPos = anchorPos + anchorOffset;
-        if (!transform.position.Equals(newPos))
-        {
-            transform.position = newPos;
+            Vector3 newPos = anchorPos + anchorOffset;
+            if (rectTransform != null && !rectTransform.position.Equals(newPos))
+            {
+                rectTransform.position = newPos;
+                Debug.Log($"[UpdateAnchor] Applied without stretch - NewPos: {newPos}");
+            }
         }
     }
-}
 
     Vector3 GetAnchorPosition(AnchorType anchor)
     {
@@ -127,12 +183,13 @@ void UpdateAnchor()
     }
 
 #if UNITY_EDITOR
-    void Update()
+    void OnValidate()
     {
         if (updateAnchorRoutine == null)
         {
             updateAnchorRoutine = UpdateAnchorAsync();
             StartCoroutine(updateAnchorRoutine);
+            Debug.Log($"[OnValidate] Triggered UpdateAnchorAsync, Initial Screen.safeArea: {Screen.safeArea}, AnchorType: {anchorType}");
         }
     }
 #endif
