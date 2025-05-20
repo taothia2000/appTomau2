@@ -5,15 +5,34 @@ public class ScreenPositioner : MonoBehaviour
     public enum ScreenAnchor { TopLeft, Top, TopRight, Left, Center, Right, BottomLeft, Bottom, BottomRight }
     public ScreenAnchor anchorPosition;
     public Vector2 offset;
-    public bool adjustScale = true; 
-    public float scaleMultiplier = 0.5f; 
-    
+    public bool adjustScale = true;
+    public float scaleMultiplier = 1.0f;
+
+    [SerializeField] private Camera targetCamera;
+
     private Vector2 lastScreenSize;
     private Vector3 originalScale;
-    private float baseScreenHeight = 1080f; 
+    private CameraAdjuster cameraAdjuster;
 
     void Start()
     {
+        if (targetCamera == null)
+        {
+            targetCamera = Camera.main;
+            if (targetCamera == null)
+            {
+                Debug.LogError("[ScreenPositioner] Không có camera nào được gán và không tìm thấy Main Camera trong scene!");
+                return;
+            }
+            Debug.LogWarning("[ScreenPositioner] Target Camera chưa được gán, sử dụng Main Camera mặc định.");
+        }
+
+        cameraAdjuster = targetCamera.GetComponent<CameraAdjuster>();
+        if (cameraAdjuster == null)
+        {
+            Debug.LogWarning("[ScreenPositioner] Không tìm thấy CameraAdjuster trên targetCamera, dùng aspect mặc định.");
+        }
+
         originalScale = transform.localScale;
         lastScreenSize = new Vector2(Screen.width, Screen.height);
         PositionObject();
@@ -21,71 +40,48 @@ public class ScreenPositioner : MonoBehaviour
 
     void Update()
     {
-        if (Mathf.Abs(Screen.width - lastScreenSize.x) > 0.1f || 
-            Mathf.Abs(Screen.height - lastScreenSize.y) > 0.1f)
+        Vector2 currentScreenSize = new Vector2(Screen.width, Screen.height);
+        if (Vector2.SqrMagnitude(currentScreenSize - lastScreenSize) > 0.01f) // Ngưỡng nhạy hơn
         {
-            lastScreenSize = new Vector2(Screen.width, Screen.height);
+            lastScreenSize = currentScreenSize;
+            Debug.Log("[ScreenPositioner] Detected screen size change, calling PositionObject");
             PositionObject();
         }
     }
-    
+
     void PositionObject()
+{
+    if (targetCamera == null) return;
+
+    float orthoSize = targetCamera.orthographicSize;
+    float cameraHeight = 2f * orthoSize;
+    float targetAspect = (cameraAdjuster != null) ? cameraAdjuster.targetAspect : targetCamera.aspect;
+    float cameraWidth = cameraHeight * targetAspect;
+
+    Debug.Log($"[ScreenPositioner] Chiều rộng camera={cameraWidth:F2}, Chiều cao camera={cameraHeight:F2}, Tỷ lệ={targetAspect:F2}");
+
+    // Tính tỷ lệ để background khớp với camera
+    float widthRatio = cameraWidth / originalScale.x;
+    float heightRatio = cameraHeight / originalScale.y;
+    float scaleRatio = Mathf.Max(widthRatio, heightRatio);
+    scaleRatio = Mathf.Clamp(scaleRatio, 0.1f, 10f); // Giới hạn để tránh quá nhỏ/quá lớn
+
+    Vector3 newScale = new Vector3(scaleRatio, scaleRatio, 1) * scaleMultiplier;
+
+    if (adjustScale)
     {
-        Camera cam = Camera.main;
-        Vector3 viewportPosition = Vector3.zero;
-        
-        switch (anchorPosition)
-        {
-            case ScreenAnchor.TopLeft:      viewportPosition = new Vector3(0, 1, 0); break;
-            case ScreenAnchor.Top:          viewportPosition = new Vector3(0.5f, 1, 0); break;
-            case ScreenAnchor.TopRight:     viewportPosition = new Vector3(1, 1, 0); break;
-            case ScreenAnchor.Left:         viewportPosition = new Vector3(0, 0.5f, 0); break;
-            case ScreenAnchor.Center:       viewportPosition = new Vector3(0.5f, 0.5f, 0); break;
-            case ScreenAnchor.Right:        viewportPosition = new Vector3(1, 0.5f, 0); break;
-            case ScreenAnchor.BottomLeft:   viewportPosition = new Vector3(0, 0, 0); break;
-            case ScreenAnchor.Bottom:       viewportPosition = new Vector3(0.5f, 0, 0); break;
-            case ScreenAnchor.BottomRight:  viewportPosition = new Vector3(1, 0, 0); break;
-        }
-        
-        // Chuyển đổi từ viewport sang world position
-        Vector3 worldPos = cam.ViewportToWorldPoint(viewportPosition);
-        worldPos.z = 0;
-        worldPos += new Vector3(offset.x, offset.y, 0);
-        transform.position = worldPos;
-        
-          if (adjustScale)
-    {
-        // Tính tỷ lệ màn hình dựa trên chiều rộng thay vì chiều cao
-        float widthRatio = (float)Screen.width / 1080f; // 1080 là chiều rộng tham chiếu
-        float heightRatio = (float)Screen.height / 1920f; // 1920 là chiều cao tham chiếu
-        
-        // Sử dụng tỷ lệ nhỏ hơn để đảm bảo đối tượng hiển thị đầy đủ
-        float screenRatio = Mathf.Min(widthRatio, heightRatio);
-        
-        // Áp dụng tỷ lệ thay đổi rõ rệt hơn
-        Vector3 newScale;
-        if (Screen.width >= 1500) // Màn hình rộng
-        {
-            newScale = originalScale * 1.5f; // Tăng 50% cho màn hình lớn
-        }
-        else if (Screen.width <= 1000) // Màn hình nhỏ 
-        {
-            newScale = originalScale * 0.8f; // Giảm 20% cho màn hình nhỏ
-        }
-        else // Màn hình trung bình
-        {
-            newScale = originalScale * 1.0f; // Giữ nguyên scale cho màn hình chuẩn
-        }
-        
-        // Áp dụng scaleMultiplier từ Inspector
-        newScale *= scaleMultiplier;
-        
         transform.localScale = newScale;
-        
     }
     else
     {
         transform.localScale = originalScale;
     }
-    }
+
+    // Đặt background vào giữa khung hình
+    Vector3 viewportPosition = new Vector3(0.5f, 0.5f, 0);
+    Vector3 worldPos = targetCamera.ViewportToWorldPoint(viewportPosition);
+    worldPos.z = 0; // Đặt Z = 0 để khớp với background
+    worldPos += new Vector3(offset.x, offset.y, 0);
+    transform.position = worldPos;
+}
 }
