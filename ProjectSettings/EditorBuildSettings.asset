@@ -6,14 +6,14 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: "Assets/Scenes/Giao di\u1EC7n.unity"
+    guid: 2cda990e2423bbf4892e6590ba056729
+  - enabled: 1
     path: Assets/Scenes/Caubebotbi.unity
     guid: c963c59577e307e4f8f3e8d0c000dcaf
   - enabled: 1
     path: Assets/Scenes/chuchocanhsat.unity
     guid: 6a5184bea9edfc249a78e39860b9d4b3
-  - enabled: 1
-    path: "Assets/Scenes/Giao di\u1EC7n.unity"
-    guid: 2cda990e2423bbf4892e6590ba056729
   - enabled: 1
     path: Assets/Scenes/HelloKitty.unity
     guid: 596e6c5763a762143b3acc7b8b93e146

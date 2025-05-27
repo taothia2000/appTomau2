@@ -444,10 +444,11 @@ public class ColoringManager : MonoBehaviour
             return false;
         }
     }
-    
+
     #endregion
 
     #region Drawing Logic
+
 
     void Update()
     {
@@ -461,7 +462,7 @@ public class ColoringManager : MonoBehaviour
         frameCounter++;
         if (needsApply && (frameCounter % APPLY_FREQUENCY == 0 || !isModifying))
         {
-            coloringTexture.Apply();
+            coloringTexture.Apply(false);
             needsApply = false;
             frameCounter = 0;
         }
@@ -569,7 +570,12 @@ private float CalculateCursorWorldSize(float brushSizeInPixels)
 
 Vector2 WorldToTextureCoordinates(Vector2 worldPos)
 {
-    Vector2 local = targetSprite.transform.InverseTransformPoint(worldPos);
+    Vector2 local;
+    
+    // Avoid InverseTransformPoint for better performance
+    Vector2 worldToLocal = worldPos - (Vector2)targetSprite.transform.position;
+    local.x = worldToLocal.x / targetSprite.transform.lossyScale.x;
+    local.y = worldToLocal.y / targetSprite.transform.lossyScale.y;
     
     // Convert to normalized coordinates (0-1)
     float normalizedX = (local.x / spriteSize.x) + 0.5f;
@@ -829,14 +835,16 @@ void RestoreOriginalPixels(int centerX, int centerY, int radius)
     int y = (int)pixelPos.y;
 
     int radius = Mathf.Min(Mathf.RoundToInt(brushSize), maxBrushSize);
-
-    // Giảm mật độ pixel với brush size lớn
-    int step = radius > 50 ? 2 : 1;
+    
+    // Adaptive sampling based on brush size
+    int step = radius > 30 ? (radius > 60 ? 4 : 2) : 1;
+    
     foreach (var offset in brushOffsetCache[radius])
     {
-        if (offset.x % step != 0 || offset.y % step != 0) // Bỏ qua một số pixel
+        // Skip pixels based on step size
+        if (offset.x % step != 0 || offset.y % step != 0)
             continue;
-
+            
         int currentX = x + offset.x;
         int currentY = y + offset.y;
 

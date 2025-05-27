@@ -640,6 +640,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1011290138}
   - component: {fileID: 1011290137}
+  - component: {fileID: 1011290139}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -674,6 +675,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1011290139
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1011290136}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b8ee30e22e513f42aeee595cc6e5c68, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1025926606
 GameObject:
   m_ObjectHideFlags: 0
@@ -1194,7 +1207,11 @@ PrefabInstance:
     - target: {fileID: 1177546239188216431, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: 21300000, guid: 7b1c55b3c97b7df419b12a029555f4c7, type: 3}
+      objectReference: {fileID: 21300000, guid: ac8665da9d5ef8643905bf2ddbe42eca, type: 3}
+    - target: {fileID: 1414052218405635507, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: m_ShowMaskGraphic
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3172165676414167004, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
       propertyPath: m_Pivot.x
       value: 0.5
@@ -1285,6 +1302,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5133903290224836051, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
       propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5133903290224836051, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
+      propertyPath: m_Maskable
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5967616746632673938, guid: 7e496e73b399e9d429a1a0eb6aa2a3dd, type: 3}
