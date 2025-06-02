@@ -477,7 +477,7 @@ private List<GameObject> colorOptionPool = new List<GameObject>();
         labelRect.sizeDelta = new Vector2(80, 20);
 
         brightnessLabelText = labelObj.AddComponent<Text>();
-        brightnessLabelText.text = "Color Select";
+        brightnessLabelText.text = "Chọn màu";
         brightnessLabelText.color = Color.white;
         brightnessLabelText.alignment = TextAnchor.MiddleCenter;
         if (legacyFont != null)
@@ -507,7 +507,7 @@ private List<GameObject> colorOptionPool = new List<GameObject>();
         applyTextRect.sizeDelta = Vector2.zero;
 
         Text applyButtonText = applyTextObj.AddComponent<Text>();
-        applyButtonText.text = "Apply";
+        applyButtonText.text = "Xác nhận";
         applyButtonText.color = Color.white;
         applyButtonText.alignment = TextAnchor.MiddleCenter;
         if (legacyFont != null)

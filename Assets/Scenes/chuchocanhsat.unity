@@ -4499,6 +4499,18 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6647516261829670687, guid: 5a6ce6f35fe15c94cbb169689d7fe009, type: 3}
+      propertyPath: ConformX
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6647516261829670687, guid: 5a6ce6f35fe15c94cbb169689d7fe009, type: 3}
+      propertyPath: ConformY
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6647516261829670687, guid: 5a6ce6f35fe15c94cbb169689d7fe009, type: 3}
+      propertyPath: ScaleMultiplier
+      value: 1.05
+      objectReference: {fileID: 0}
     - target: {fileID: 8003370943496591008, guid: 5a6ce6f35fe15c94cbb169689d7fe009, type: 3}
       propertyPath: m_Name
       value: PnlTop
